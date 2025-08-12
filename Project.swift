@@ -11,6 +11,9 @@ let project = Project(
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "SSAFYHub",
                 "CFBundleName": "SSAFYHub",
+                "CFBundleLocalizations": ["ko"],
+                "NSCameraUsageDescription": "메뉴 사진을 촬영하여 OCR로 메뉴를 인식하기 위해 카메라 접근 권한이 필요합니다.",
+                "NSPhotoLibraryUsageDescription": "앨범에서 메뉴 사진을 선택하여 OCR로 메뉴를 인식하기 위해 사진 접근 권한이 필요합니다.",
                 "UIApplicationSceneManifest": [
                     "UIApplicationSupportsMultipleScenes": false,
                     "UISceneConfigurations": [

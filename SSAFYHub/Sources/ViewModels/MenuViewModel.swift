@@ -14,6 +14,11 @@ class MenuViewModel: ObservableObject {
     init() {
         // init 시점에는 메뉴를 로드하지 않음
         // 사용자가 캠퍼스를 설정한 후 loadMenuForCurrentDate() 호출
+        
+        // 현재 날짜를 시간 제거하고 설정
+        let calendar = Calendar.current
+        currentDate = calendar.startOfDay(for: Date())
+        print("📅 MenuViewModel 초기화 - 현재 날짜: \(currentDate)")
     }
     
     // MARK: - Initialization

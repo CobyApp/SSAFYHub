@@ -8,6 +8,8 @@ class AuthViewModel: ObservableObject {
     @Published var authState: AuthState = .loading
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var isAppleSignInInProgress = false
+    @Published var showError = false
     
     let supabaseService = SupabaseService.shared
     weak var coordinator: AppCoordinator?
@@ -57,9 +59,13 @@ class AuthViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let appleSignInService = AppleSignInService.shared
-            let user = try await appleSignInService.signInWithApple()
-            print("🍎 Apple 로그인 성공: \(user.email)")
+            let identityToken = try await AppleSignInService.shared.signInWithApple()
+            print("🍎 Apple 로그인 성공, Identity Token 획득")
+            
+            // Supabase 인증
+            let user = try await supabaseService.authenticateWithApple(identityToken: identityToken)
+            print("🔐 Supabase 인증 성공: \(user.email)")
+            
             authState = .authenticated(user)
         } catch {
             print("❌ Apple 로그인 실패: \(error)")
@@ -82,6 +88,12 @@ class AuthViewModel: ObservableObject {
         }
         
         isLoading = false
+    }
+    
+    // 게스트 모드 나가기 (별도 함수)
+    func exitGuestMode() {
+        print("👤 게스트 모드 나가기")
+        authState = .unauthenticated
     }
     
     func updateUserCampus(_ campus: Campus) async {
@@ -145,54 +157,42 @@ class AuthViewModel: ObservableObject {
         print("🏁 signInAsGuest 종료")
     }
     
-    // MARK: - Apple Sign In with Direct Navigation
-    func signInWithAppleAndNavigate() async {
-        // 중복 실행 방지
-        guard !isLoading else {
-            print("⚠️ AuthViewModel: Apple 로그인이 이미 진행 중입니다")
+    // MARK: - Apple Sign In with Navigation
+    func signInWithAppleAndNavigate() async throws {
+        guard !isAppleSignInInProgress else {
+            print("⚠️ Apple Sign-In이 이미 진행 중입니다")
             return
         }
         
-        print("🍎 Apple 로그인 시작")
-        isLoading = true
+        isAppleSignInInProgress = true
         errorMessage = nil
+        showError = false
         
         do {
-            // 1. Apple Sign In Service를 통해 실제 Apple 로그인 수행
-            let appleSignInService = AppleSignInService.shared
-            let user = try await appleSignInService.signInWithApple()
+            print("🍎 Apple Sign-In 시작")
+            let identityToken = try await AppleSignInService.shared.signInWithApple()
+            print("🍎 Apple Sign-In 성공, Identity Token 획득")
             
-            print("🍎 Apple 로그인 성공: \(user.email)")
+            // Supabase 인증
+            let authenticatedUser = try await supabaseService.authenticateWithApple(identityToken: identityToken)
+            print("🔐 Supabase 인증 성공: \(authenticatedUser.email)")
             
-            // 2. authState 즉시 업데이트
-            await MainActor.run {
-                print("🔄 Apple 로그인 authState 업데이트 시작")
-                let oldState = authState
-                authState = .authenticated(user)
-                print("✅ Apple 로그인 authState 업데이트 완료")
-                print("📱 이전 상태: \(oldState)")
-                print("📱 새로운 상태: \(authState)")
-                
-                // 3. Coordinator를 통해 즉시 네비게이션
-                if let coordinator = self.coordinator {
-                    print("🎯 Coordinator를 통해 직접 네비게이션 요청")
-                    coordinator.handleDirectAuthentication(user)
-                } else {
-                    print("⚠️ Coordinator가 연결되지 않음")
-                }
-            }
+            // 인증 상태 업데이트
+            authState = .authenticated(authenticatedUser)
             
+            // Coordinator를 통한 네비게이션
+            coordinator?.handleDirectAuthentication(authenticatedUser)
+            
+            print("✅ Apple Sign-In 및 네비게이션 완료")
         } catch {
-            print("❌ Apple 로그인 실패: \(error)")
+            print("❌ Apple Sign-In 실패: \(error)")
             errorMessage = "Apple 로그인에 실패했습니다: \(error.localizedDescription)"
-            
-            // 에러 발생 시 인증 상태를 unauthenticated로 설정
-            await MainActor.run {
-                authState = .unauthenticated
-            }
+            showError = true
+            authState = .unauthenticated
+            throw error
         }
         
-        isLoading = false
+        isAppleSignInInProgress = false
     }
     
     public func fetchUserData(userId: String) async throws -> User {

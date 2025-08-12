@@ -1,49 +1,7 @@
 import SwiftUI
+import UIKit
+import AVFoundation
 import PhotosUI
-
-// MARK: - Image Picker
-struct ImagePicker: UIViewControllerRepresentable {
-    @Binding var selectedImage: UIImage?
-    @Environment(\.dismiss) private var dismiss
-    
-    func makeUIViewController(context: Context) -> PHPickerViewController {
-        var config = PHPickerConfiguration()
-        config.filter = .images
-        config.selectionLimit = 1
-        
-        let picker = PHPickerViewController(configuration: config)
-        picker.delegate = context.coordinator
-        return picker
-    }
-    
-    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        let parent: ImagePicker
-        
-        init(_ parent: ImagePicker) {
-            self.parent = parent
-        }
-        
-        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            parent.dismiss()
-            
-            guard let provider = results.first?.itemProvider else { return }
-            
-            if provider.canLoadObject(ofClass: UIImage.self) {
-                provider.loadObject(ofClass: UIImage.self) { image, _ in
-                    DispatchQueue.main.async {
-                        self.parent.selectedImage = image as? UIImage
-                    }
-                }
-            }
-        }
-    }
-}
 
 // MARK: - Camera View
 struct CameraView: UIViewControllerRepresentable {
@@ -54,6 +12,7 @@ struct CameraView: UIViewControllerRepresentable {
         let picker = UIImagePickerController()
         picker.delegate = context.coordinator
         picker.sourceType = .camera
+        picker.allowsEditing = true
         return picker
     }
     
@@ -71,7 +30,7 @@ struct CameraView: UIViewControllerRepresentable {
         }
         
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-            if let image = info[.originalImage] as? UIImage {
+            if let image = info[.editedImage] as? UIImage ?? info[.originalImage] as? UIImage {
                 parent.selectedImage = image
             }
             parent.dismiss()
@@ -79,6 +38,85 @@ struct CameraView: UIViewControllerRepresentable {
         
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             parent.dismiss()
+        }
+    }
+}
+
+// MARK: - Image Picker
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var selectedImage: UIImage?
+    @Environment(\.dismiss) private var dismiss
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.sourceType = .photoLibrary
+        picker.allowsEditing = true
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: ImagePicker
+        
+        init(_ parent: ImagePicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let image = info[.editedImage] as? UIImage ?? info[.originalImage] as? UIImage {
+                parent.selectedImage = image
+            }
+            parent.dismiss()
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.dismiss()
+        }
+    }
+}
+
+// MARK: - Permission Checker
+class PermissionChecker: ObservableObject {
+    @Published var cameraPermissionGranted = false
+    @Published var photoLibraryPermissionGranted = false
+    
+    func checkCameraPermission() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            cameraPermissionGranted = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    self.cameraPermissionGranted = granted
+                }
+            }
+        case .denied, .restricted:
+            cameraPermissionGranted = false
+        @unknown default:
+            cameraPermissionGranted = false
+        }
+    }
+    
+    func checkPhotoLibraryPermission() {
+        switch PHPhotoLibrary.authorizationStatus() {
+        case .authorized, .limited:
+            photoLibraryPermissionGranted = true
+        case .notDetermined:
+            PHPhotoLibrary.requestAuthorization { status in
+                DispatchQueue.main.async {
+                    self.photoLibraryPermissionGranted = status == .authorized || status == .limited
+                }
+            }
+        case .denied, .restricted:
+            photoLibraryPermissionGranted = false
+        @unknown default:
+            photoLibraryPermissionGranted = false
         }
     }
 }

@@ -13,7 +13,7 @@ class AppleSignInService: NSObject, ObservableObject, Sendable {
         super.init()
     }
     
-    func signInWithApple() async throws -> User {
+    func signInWithApple() async throws -> String {
         // 중복 실행 방지
         guard !isSignInInProgress else {
             print("⚠️ AppleSignInService: Apple 로그인이 이미 진행 중입니다")
@@ -59,11 +59,11 @@ class AppleSignInService: NSObject, ObservableObject, Sendable {
 
 @MainActor
 class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
-    private let continuation: CheckedContinuation<User, Error>
+    private let continuation: CheckedContinuation<String, Error> // Changed to String
     private let supabaseService: SupabaseService
     private(set) var hasResumed = false
     
-    init(continuation: CheckedContinuation<User, Error>, supabaseService: SupabaseService) {
+    init(continuation: CheckedContinuation<String, Error>, supabaseService: SupabaseService) { // Changed to String
         self.continuation = continuation
         self.supabaseService = supabaseService
         print("🍎 AppleSignInDelegate 초기화됨")
@@ -114,12 +114,13 @@ class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthor
         
         Task {
             do {
+                // SupabaseService.authenticateWithApple now returns User, not String
                 let user = try await supabaseService.authenticateWithApple(identityToken: identityToken)
                 print("🍎 Supabase 인증 성공: \(user.email)")
                 
                 // continuation resume (이미 hasResumed이 true이므로 중복 방지됨)
                 print("✅ continuation resume 성공")
-                continuation.resume(returning: user)
+                continuation.resume(returning: identityToken) // Changed to return identityToken
                 
             } catch {
                 print("❌ Supabase 인증 실패: \(error)")
