@@ -63,43 +63,95 @@ struct SSAFYHubApp: App {
             do {
                 print("🔍 SSAFYHubApp: 세션 상태 확인 시작")
                 
-                // 세션 갱신 시도 (에러가 발생해도 계속 진행)
-                do {
-                    try await authViewModel.supabaseService.refreshSessionIfNeeded()
-                } catch {
-                    print("ℹ️ SSAFYHubApp: 세션 갱신 실패 (정상적인 상황): \(error)")
+                // 1. 먼저 저장된 사용자 세션에서 복구 시도
+                if let savedUser = await authViewModel.supabaseService.restoreUserSession() {
+                    print("🔍 SSAFYHubApp: 저장된 사용자 세션 발견 - \(savedUser.email)")
+                    
+                    await MainActor.run {
+                        print("✅ 앱 시작 시 저장된 사용자 세션으로 로그인 복구: \(savedUser.email)")
+                        authViewModel.authState = .authenticated(savedUser)
+                        
+                        if !savedUser.campus.rawValue.isEmpty {
+                            print("🏫 기존 캠퍼스 정보: \(savedUser.campus.displayName)")
+                            appCoordinator.navigateToMainMenuWithCampus(savedUser.campus)
+                        } else {
+                            print("❓ 캠퍼스 정보 없음, 캠퍼스 선택 화면으로")
+                            appCoordinator.navigateToCampusSelection()
+                        }
+                    }
+                    return
                 }
                 
-                // 세션 존재 여부 확인
-                let session = try await authViewModel.supabaseService.getCurrentSession()
-                let user = session.user
-                print("🔍 SSAFYHubApp: 세션 발견 - 사용자 ID: \(user.id)")
-                
-                let userData = try await authViewModel.fetchUserData(userId: user.id.uuidString)
-                print("🔍 SSAFYHubApp: 사용자 데이터 로드 완료 - \(userData.email)")
-                
-                await MainActor.run {
-                    print("✅ 앱 시작 시 기존 로그인 발견: \(userData.email)")
-                    authViewModel.authState = .authenticated(userData)
+                // 2. Supabase 자동 세션 확인
+                do {
+                    let session = try await authViewModel.supabaseService.getCurrentSession()
+                    let user = session.user
+                    print("🔍 SSAFYHubApp: Supabase 세션 발견 - 사용자 ID: \(user.id)")
                     
-                    // 기존 사용자는 바로 메인화면으로
-                    if !userData.campus.rawValue.isEmpty {
-                        print("🏫 기존 캠퍼스 정보: \(userData.campus.displayName)")
-                        appCoordinator.navigateToMainMenuWithCampus(userData.campus)
-                    } else {
-                        print("❓ 캠퍼스 정보 없음, 캠퍼스 선택 화면으로")
-                        appCoordinator.navigateToCampusSelection()
+                    // 사용자 데이터 로드
+                    let userData = try await authViewModel.fetchUserData(userId: user.id.uuidString)
+                    print("🔍 SSAFYHubApp: 사용자 데이터 로드 완료 - \(userData.email)")
+                    
+                    // 사용자 세션 저장 (Apple 로그인 사용자도 포함)
+                    await authViewModel.supabaseService.saveUserSession(userData)
+                    print("🔍 SSAFYHubApp: 사용자 세션 저장 완료 - \(userData.email)")
+                    
+                    await MainActor.run {
+                        print("✅ 앱 시작 시 Supabase 세션으로 로그인 발견: \(userData.email)")
+                        authViewModel.authState = .authenticated(userData)
+                        
+                        if !userData.campus.rawValue.isEmpty {
+                            print("🏫 기존 캠퍼스 정보: \(userData.campus.displayName)")
+                            appCoordinator.navigateToMainMenuWithCampus(userData.campus)
+                        } else {
+                            print("❓ 캠퍼스 정보 없음, 캠퍼스 선택 화면으로")
+                            appCoordinator.navigateToCampusSelection()
+                        }
+                    }
+                } catch {
+                    print("🔍 SSAFYHubApp: Supabase 세션 없음, 수동 세션 복구 시도")
+                    
+                    // 3. 수동 저장된 세션에서 복구 시도
+                    if let manualSession = await authViewModel.supabaseService.restoreSessionManually() {
+                        print("🔍 SSAFYHubApp: 수동 세션 복구 성공 - 사용자 ID: \(manualSession.user.id)")
+                        
+                        let userData = try await authViewModel.fetchUserData(userId: manualSession.user.id.uuidString)
+                        print("🔍 SSAFYHubApp: 사용자 데이터 로드 완료 - \(userData.email)")
+                        
+                        // 사용자 세션 저장
+                        await authViewModel.supabaseService.saveUserSession(userData)
+                        print("🔍 SSAFYHubApp: 수동 세션 복구 후 사용자 세션 저장 완료 - \(userData.email)")
+                        
+                        await MainActor.run {
+                            print("✅ 앱 시작 시 수동 세션 복구로 로그인 발견: \(userData.email)")
+                            authViewModel.authState = .authenticated(userData)
+                            
+                            if !userData.campus.rawValue.isEmpty {
+                                print("🏫 기존 캠퍼스 정보: \(userData.campus.displayName)")
+                                appCoordinator.navigateToMainMenuWithCampus(userData.campus)
+                            } else {
+                                print("❓ 캠퍼스 정보 없음, 캠퍼스 선택 화면으로")
+                                appCoordinator.navigateToCampusSelection()
+                            }
+                        }
+                        return
+                    }
+                    
+                    print("🔍 SSAFYHubApp: 모든 세션 복구 시도 실패, 로그아웃 상태로 설정")
+                    
+                    // 4. 모든 시도 실패 시 로그아웃 상태로 설정
+                    await MainActor.run {
+                        print("❌ 앱 시작 시 로그인 상태 확인 실패")
+                        authViewModel.authState = .unauthenticated
+                        appCoordinator.currentRoute = .auth
                     }
                 }
             } catch {
                 await MainActor.run {
-                    print("❌ 앱 시작 시 로그인 상태 확인 실패: \(error)")
-                    
-                    // 세션 관련 에러인지 확인
+                    print("❌ 앱 시작 시 로그인 상태 확인 중 예상치 못한 에러: \(error)")
                     print("🔍 에러 타입: \(type(of: error))")
                     print("🔍 에러 설명: \(error.localizedDescription)")
                     
-                    // 세션이 만료되었거나 없는 경우 인증 화면으로
                     authViewModel.authState = .unauthenticated
                     appCoordinator.currentRoute = .auth
                 }

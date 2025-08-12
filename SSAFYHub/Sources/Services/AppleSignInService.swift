@@ -7,12 +7,25 @@ class AppleSignInService: NSObject, ObservableObject, Sendable {
     static let shared = AppleSignInService()
     
     private let supabaseService = SupabaseService.shared
+    private var isSignInInProgress = false  // 로그인 진행 상태 추가
     
     private override init() {
         super.init()
     }
     
     func signInWithApple() async throws -> User {
+        // 중복 실행 방지
+        guard !isSignInInProgress else {
+            print("⚠️ AppleSignInService: Apple 로그인이 이미 진행 중입니다")
+            throw NSError(domain: "AppleSignInError", code: -12, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인이 이미 진행 중입니다"])
+        }
+        
+        isSignInInProgress = true  // 로그인 진행 상태 설정
+        
+        defer {
+            isSignInInProgress = false  // 함수 종료 시 상태 초기화
+        }
+        
         print("🍎 Apple 로그인 시작 - continuation 생성")
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.main.async {
@@ -32,10 +45,10 @@ class AppleSignInService: NSObject, ObservableObject, Sendable {
                 print("🍎 Apple 로그인 팝업 표시 시작")
                 authorizationController.performRequests()
                 
-                // 5초 후에도 continuation이 resume되지 않으면 타임아웃 처리
-                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                // 타임아웃 시간을 15초로 증가 (Apple 로그인은 시간이 걸릴 수 있음)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) {
                     if !delegate.hasResumed {
-                        print("⏰ Apple 로그인 타임아웃 (5초)")
+                        print("⏰ Apple 로그인 타임아웃 (15초)")
                         delegate.handleTimeout()
                     }
                 }
@@ -95,24 +108,23 @@ class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthor
         }
         
         print("🍎 Identity token 획득, Supabase 인증 시작")
+        
+        // 즉시 hasResumed을 true로 설정하여 중복 처리 방지
+        hasResumed = true
+        
         Task {
             do {
                 let user = try await supabaseService.authenticateWithApple(identityToken: identityToken)
                 print("🍎 Supabase 인증 성공: \(user.email)")
                 
-                if !hasResumed {
-                    hasResumed = true
-                    print("✅ continuation resume 성공")
-                    continuation.resume(returning: user)
-                } else {
-                    print("⚠️ 이미 resume됨, 중복 처리 방지")
-                }
+                // continuation resume (이미 hasResumed이 true이므로 중복 방지됨)
+                print("✅ continuation resume 성공")
+                continuation.resume(returning: user)
+                
             } catch {
                 print("❌ Supabase 인증 실패: \(error)")
-                if !hasResumed {
-                    hasResumed = true
-                    continuation.resume(throwing: error)
-                }
+                // 에러 발생 시에도 continuation resume
+                continuation.resume(throwing: error)
             }
         }
     }
@@ -164,9 +176,9 @@ class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthor
     // deinit에서도 continuation이 resume되지 않았으면 에러로 처리
     deinit {
         print("🍎 AppleSignInDelegate deinit")
-        if !hasResumed {
-            print("⚠️ deinit에서 continuation resume")
-            continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -4, userInfo: [NSLocalizedDescriptionKey: "Apple Sign In was cancelled or failed"]))
-        }
+        guard !hasResumed else { return }
+        print("⚠️ deinit에서 continuation resume")
+        hasResumed = true
+        continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -4, userInfo: [NSLocalizedDescriptionKey: "Apple Sign In was cancelled or failed"]))
     }
 }

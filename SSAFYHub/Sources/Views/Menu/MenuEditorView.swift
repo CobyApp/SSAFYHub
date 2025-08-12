@@ -35,32 +35,40 @@ struct MenuEditorView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                // Mode Toggle
-                modeToggleView
+            VStack(spacing: 0) {
+                // 모드 토글 (게스트 사용자는 단일 모드만 가능)
+                if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
+                    modeToggleView
+                        .padding()
+                }
                 
-                // Date Header
+                // 날짜 헤더
                 dateHeaderView
+                    .padding()
                 
-                // OCR Buttons
-                ocrButtonsView
-                
-                // Menu Input Forms
-                if isWeeklyMode {
-                    weeklyMenuInputFormsView
+                // 메뉴 입력 폼
+                if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
+                    // 인증된 사용자: 주간/단일 모드 선택 가능
+                    if isWeeklyMode {
+                        weeklyMenuInputFormsView
+                    } else {
+                        singleMenuInputFormsView
+                    }
                 } else {
-                    singleMenuInputFormsView
+                    // 게스트 사용자: 읽기 전용
+                    guestReadOnlyView
                 }
                 
                 Spacer()
                 
-                // Save Button
-                saveButtonView
+                // 저장 버튼 (게스트 사용자는 숨김)
+                if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
+                    saveButtonView
+                        .padding()
+                }
             }
-            .padding()
-            .navigationTitle(isWeeklyMode ? "주간 메뉴 편집" : "메뉴 편집")
+            .navigationTitle("메뉴 편집")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(true)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("취소") {
@@ -486,6 +494,35 @@ struct MenuEditorView: View {
                 dismiss()
             }
         }
+    }
+    
+    // MARK: - Guest Read Only View
+    private var guestReadOnlyView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "lock.shield")
+                .font(.system(size: 48))
+                .foregroundColor(.orange)
+            
+            VStack(spacing: 8) {
+                Text("게스트 사용자는 메뉴를 편집할 수 없습니다")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                
+                Text("Apple ID로 로그인하여 메뉴 편집 기능을 이용하세요")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            
+            Button("Apple 로그인") {
+                // Apple 로그인 화면으로 이동
+                dismiss()
+                // TODO: Apple 로그인 화면으로 네비게이션
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, minHeight: 300)
+        .padding()
     }
 }
 

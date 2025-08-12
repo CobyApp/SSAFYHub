@@ -96,6 +96,7 @@ class AuthViewModel: ObservableObject {
                     id: user.id,
                     email: user.email,
                     campus: campus,
+                    userType: user.userType,  // userType 유지
                     createdAt: user.createdAt,
                     updatedAt: Date()
                 )
@@ -114,18 +115,13 @@ class AuthViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            // 게스트 사용자 생성 (임시 ID와 이메일)
-            let guestUser = User(
-                id: UUID().uuidString,
-                email: "guest@ssafyhub.com",
-                campus: campus,
-                createdAt: Date(),
-                updatedAt: Date()
-            )
+            // 1. SupabaseService를 통해 게스트 사용자 생성
+            let guestUser = try await supabaseService.signInAsGuest(campus: campus)
             
             print("👤 게스트 사용자 생성됨: \(guestUser)")
             print("🔄 authState 업데이트 시작")
             
+            // 2. authState 업데이트
             await MainActor.run {
                 let oldState = authState
                 authState = .authenticated(guestUser)
@@ -138,6 +134,11 @@ class AuthViewModel: ObservableObject {
         } catch {
             print("❌ signInAsGuest 오류: \(error)")
             errorMessage = "게스트 로그인에 실패했습니다: \(error.localizedDescription)"
+            
+            // 에러 발생 시 인증 상태를 unauthenticated로 설정
+            await MainActor.run {
+                authState = .unauthenticated
+            }
         }
         
         isLoading = false
@@ -146,39 +147,48 @@ class AuthViewModel: ObservableObject {
     
     // MARK: - Apple Sign In with Direct Navigation
     func signInWithAppleAndNavigate() async {
+        // 중복 실행 방지
+        guard !isLoading else {
+            print("⚠️ AuthViewModel: Apple 로그인이 이미 진행 중입니다")
+            return
+        }
+        
         print("🍎 Apple 로그인 시작")
         isLoading = true
         errorMessage = nil
         
-        // Apple 로그인은 이미 성공했으므로, Supabase 인증만 진행
-        print("🍎 Supabase 인증 시작")
-        
-        // 임시로 테스트용 사용자 생성 (실제로는 Apple ID에서 받은 정보 사용)
-        let user = User(
-            id: UUID().uuidString,
-            email: "apple_user@example.com",
-            campus: .seoul, // 기본값, 나중에 사용자가 선택할 수 있음
-            createdAt: Date(),
-            updatedAt: Date()
-        )
-        
-        print("🍎 테스트 사용자 생성: \(user.email)")
-        
-        // authState 즉시 업데이트
-        await MainActor.run {
-            print("🔄 Apple 로그인 authState 업데이트 시작")
-            let oldState = authState
-            authState = .authenticated(user)
-            print("✅ Apple 로그인 authState 업데이트 완료")
-            print("📱 이전 상태: \(oldState)")
-            print("📱 새로운 상태: \(authState)")
+        do {
+            // 1. Apple Sign In Service를 통해 실제 Apple 로그인 수행
+            let appleSignInService = AppleSignInService.shared
+            let user = try await appleSignInService.signInWithApple()
             
-            // Coordinator를 통해 즉시 네비게이션
-            if let coordinator = self.coordinator {
-                print("🎯 Coordinator를 통해 직접 네비게이션 요청")
-                coordinator.handleDirectAuthentication(user)
-            } else {
-                print("⚠️ Coordinator가 연결되지 않음")
+            print("🍎 Apple 로그인 성공: \(user.email)")
+            
+            // 2. authState 즉시 업데이트
+            await MainActor.run {
+                print("🔄 Apple 로그인 authState 업데이트 시작")
+                let oldState = authState
+                authState = .authenticated(user)
+                print("✅ Apple 로그인 authState 업데이트 완료")
+                print("📱 이전 상태: \(oldState)")
+                print("📱 새로운 상태: \(authState)")
+                
+                // 3. Coordinator를 통해 즉시 네비게이션
+                if let coordinator = self.coordinator {
+                    print("🎯 Coordinator를 통해 직접 네비게이션 요청")
+                    coordinator.handleDirectAuthentication(user)
+                } else {
+                    print("⚠️ Coordinator가 연결되지 않음")
+                }
+            }
+            
+        } catch {
+            print("❌ Apple 로그인 실패: \(error)")
+            errorMessage = "Apple 로그인에 실패했습니다: \(error.localizedDescription)"
+            
+            // 에러 발생 시 인증 상태를 unauthenticated로 설정
+            await MainActor.run {
+                authState = .unauthenticated
             }
         }
         
@@ -203,6 +213,10 @@ class AuthViewModel: ObservableObject {
         let campusId = jsonResult["campus_id"] as? String ?? "seoul"
         let campus = Campus(rawValue: campusId) ?? .seoul
         
+        // user_type 필드 읽기 추가
+        let userTypeString = jsonResult["user_type"] as? String ?? "authenticated"
+        let userType = UserType(rawValue: userTypeString) ?? .authenticated
+        
         let createdAt = ISO8601DateFormatter().date(from: jsonResult["created_at"] as? String ?? "") ?? Date()
         let updatedAt = ISO8601DateFormatter().date(from: jsonResult["updated_at"] as? String ?? "") ?? Date()
         
@@ -210,6 +224,7 @@ class AuthViewModel: ObservableObject {
             id: userId,
             email: email,
             campus: campus,
+            userType: userType,  // userType 추가
             createdAt: createdAt,
             updatedAt: updatedAt
         )

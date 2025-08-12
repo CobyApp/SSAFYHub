@@ -1,6 +1,7 @@
 import Foundation
 import Supabase
 import AuthenticationServices
+import KeychainAccess
 
 class SupabaseService: ObservableObject {
     static let shared = SupabaseService()
@@ -11,14 +12,19 @@ class SupabaseService: ObservableObject {
         let supabaseURL = "https://gijhwyoagvkmijxzpelr.supabase.co"
         let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdpamh3eW9hZ3ZrbWlqeHpwZWxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5NzU3MzEsImV4cCI6MjA3MDU1MTczMX0.ggxD_gO-RrC_lIEkvhprTKjFHCcDmHfrOk8mz8rxDFA"
         
+        // Supabase 2.0.0+ 버전에서는 기본적으로 세션 지속 저장이 활성화됨
         self.client = SupabaseClient(
             supabaseURL: supabaseURL,
             supabaseKey: supabaseAnonKey
         )
+        
+        print("🔧 SupabaseService: 클라이언트 초기화 완료 - 세션 지속 저장 기본 활성화")
     }
     
     // MARK: - Apple Sign In
     func authenticateWithApple(identityToken: String) async throws -> User {
+        print("🍎 SupabaseService: Apple 로그인 시작")
+        
         let session = try await client.auth.signInWithIdToken(
             credentials: .init(
                 provider: .apple,
@@ -32,36 +38,90 @@ class SupabaseService: ObservableObject {
         let userEmail = user.email ?? "unknown@apple.com"
         let userCampus: Campus = .seoul
         
+        // 수동 세션 저장
+        await saveSessionManually(session)
+        
         let existingUser = try? await getCurrentUser()
         
         if let existingUser = existingUser {
+            // 기존 사용자 정보 업데이트 및 세션 저장
+            await saveUserSession(existingUser)
+            print("🍎 SupabaseService: 기존 사용자 Apple 로그인 성공 - \(existingUser.email)")
             return existingUser
         } else {
             let newUser = User(
                 id: userId,
                 email: userEmail,
                 campus: userCampus,
+                userType: .authenticated,  // Apple 로그인 사용자는 인증된 사용자
                 createdAt: Date(),
                 updatedAt: Date()
             )
             try await upsertUser(newUser)
+            
+            // 새 사용자 세션 저장
+            await saveUserSession(newUser)
+            print("🍎 SupabaseService: 새 사용자 Apple 로그인 성공 - \(newUser.email)")
             return newUser
         }
     }
     
     func signOut() async throws {
+        print("🚪 SupabaseService: 로그아웃 시작")
+        
+        // Supabase 세션 로그아웃
         try await client.auth.signOut()
+        
+        // 저장된 사용자 세션 정리
+        UserDefaults.standard.removeObject(forKey: "saved.user.session")
+        
+        let keychain = Keychain(service: "com.coby.ssafyhub.user")
+        try? keychain.remove("user.session")
+        
+        // 수동 저장된 Supabase 세션도 정리
+        UserDefaults.standard.removeObject(forKey: "manual.supabase.session")
+        
+        let sessionKeychain = Keychain(service: "com.coby.ssafyhub.session")
+        try? sessionKeychain.remove("manual.session")
+        
+        print("✅ SupabaseService: 로그아웃 완료 - 모든 저장된 세션 정리됨")
     }
     
     // MARK: - Session Management
     func getCurrentSession() async throws -> Session {
-        do {
-            let session = try await client.auth.session
-            print("🔍 SupabaseService: 세션 확인됨 - 사용자: \(session.user.email ?? "unknown")")
-            return session
-        } catch {
-            print("❌ SupabaseService: 세션 가져오기 실패: \(error)")
-            throw error
+        let session = try await client.auth.session
+        print("🔍 SupabaseService: 현재 세션 확인 - 사용자: \(session.user.email ?? "unknown")")
+        print("🔍 SupabaseService: 세션 토큰 길이: \(session.accessToken.count) characters")
+        
+        // 세션 저장 상태 확인
+        await checkSessionPersistence()
+        
+        return session
+    }
+    
+    // 세션 지속 저장 상태 확인
+    private func checkSessionPersistence() async {
+        // UserDefaults에서 세션 정보 확인
+        let userDefaults = UserDefaults.standard
+        let sessionKey = "supabase.auth.token"
+        
+        if let sessionData = userDefaults.data(forKey: sessionKey) {
+            print("💾 SupabaseService: UserDefaults에 세션 데이터 발견 - 크기: \(sessionData.count) bytes")
+            
+            // 세션 데이터 내용 확인 (디버깅용)
+            if let jsonString = String(data: sessionData, encoding: .utf8) {
+                print("🔍 SupabaseService: 저장된 세션 데이터: \(jsonString)")
+            }
+        } else {
+            print("⚠️ SupabaseService: UserDefaults에 세션 데이터 없음")
+        }
+        
+        // 키체인에서도 확인
+        let keychain = Keychain(service: "com.coby.ssafyhub.session")
+        if let keychainData = try? keychain.getData("supabase.auth.token") {
+            print("🔑 SupabaseService: 키체인에 세션 데이터 발견 - 크기: \(keychainData.count) bytes")
+        } else {
+            print("⚠️ SupabaseService: 키체인에 세션 데이터 없음")
         }
     }
     
@@ -109,6 +169,54 @@ class SupabaseService: ObservableObject {
             // 세션이 없는 경우는 정상적인 상황이므로 에러를 던지지 않음
             print("ℹ️ SupabaseService: 세션이 없음 (로그인 필요)")
             // 에러를 던지지 않고 정상적으로 처리
+        }
+    }
+    
+    // MARK: - Simple Session Persistence
+    func saveUserSession(_ user: User) async {
+        do {
+            let encoder = JSONEncoder()
+            let userData = try encoder.encode(user)
+            
+            // UserDefaults에 사용자 정보 저장
+            UserDefaults.standard.set(userData, forKey: "saved.user.session")
+            print("💾 SupabaseService: 사용자 세션 저장 완료 - \(user.email)")
+            
+            // 키체인에도 저장
+            let keychain = Keychain(service: "com.coby.ssafyhub.user")
+            try keychain.set(userData, key: "user.session")
+            print("🔑 SupabaseService: 키체인에 사용자 세션 저장 완료")
+            
+        } catch {
+            print("❌ SupabaseService: 사용자 세션 저장 실패: \(error)")
+        }
+    }
+    
+    func restoreUserSession() async -> User? {
+        do {
+            // 먼저 키체인에서 시도
+            let keychain = Keychain(service: "com.coby.ssafyhub.user")
+            if let userData = try? keychain.getData("user.session") {
+                let decoder = JSONDecoder()
+                let user = try decoder.decode(User.self, from: userData)
+                print("🔑 SupabaseService: 키체인에서 사용자 세션 복구 성공 - \(user.email)")
+                return user
+            }
+            
+            // UserDefaults에서 시도
+            if let userData = UserDefaults.standard.data(forKey: "saved.user.session") {
+                let decoder = JSONDecoder()
+                let user = try decoder.decode(User.self, from: userData)
+                print("💾 SupabaseService: UserDefaults에서 사용자 세션 복구 성공 - \(user.email)")
+                return user
+            }
+            
+            print("⚠️ SupabaseService: 저장된 사용자 세션 없음")
+            return nil
+            
+        } catch {
+            print("❌ SupabaseService: 사용자 세션 복구 실패: \(error)")
+            return nil
         }
     }
     
@@ -289,5 +397,125 @@ class SupabaseService: ObservableObject {
         }
         
         print("✅ 주간 메뉴 저장 완료")
+    }
+    
+    // MARK: - Guest Authentication
+    func signInAsGuest(campus: Campus) async throws -> User {
+        print("👤 SupabaseService: 게스트 로그인 시작 - 캠퍼스: \(campus.displayName)")
+        
+        // 게스트 사용자 생성 (userType을 .guest로 명시)
+        let guestUser = User(
+            id: UUID().uuidString,
+            email: "guest@ssafyhub.com",
+            campus: campus,
+            userType: .guest,  // 게스트 타입으로 명시
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        
+        // 사용자 데이터 저장
+        try await upsertUser(guestUser)
+        
+        // 가상 세션 생성 (게스트용)
+        let virtualSession = createVirtualSession(for: guestUser)
+        
+        // 수동 세션 저장
+        await saveSessionManually(virtualSession)
+        
+        // 사용자 세션 저장
+        await saveUserSession(guestUser)
+        
+        print("✅ SupabaseService: 게스트 로그인 완료")
+        return guestUser
+    }
+    
+    // 게스트용 가상 세션 생성
+    private func createVirtualSession(for user: User) -> Session {
+        // 게스트 사용자를 위한 가상 세션 생성
+        // 실제 Supabase 세션이 아니므로 필요한 최소 정보만 포함
+        
+        // Auth.User 타입으로 변환 (필수 매개변수만 포함)
+        let authUser = Auth.User(
+            id: UUID(uuidString: user.id) ?? UUID(),
+            appMetadata: [:],
+            userMetadata: [:],
+            aud: "authenticated",
+            confirmationSentAt: nil,
+            recoverySentAt: nil,
+            emailChangeSentAt: nil,
+            newEmail: nil,
+            invitedAt: nil,
+            actionLink: nil,
+            email: user.email,
+            phone: nil,
+            createdAt: user.createdAt,
+            confirmedAt: nil,
+            emailConfirmedAt: nil,
+            phoneConfirmedAt: nil,
+            lastSignInAt: nil,
+            role: nil,
+            updatedAt: user.updatedAt,
+            identities: [],
+            factors: []
+        )
+        
+        // 가상 세션 반환 (실제로는 사용되지 않음)
+        return Session(
+            providerToken: nil,
+            providerRefreshToken: nil,
+            accessToken: "guest_token_\(user.id)",
+            tokenType: "bearer",
+            expiresIn: 3600,
+            refreshToken: "guest_refresh_\(user.id)",
+            user: authUser
+        )
+    }
+    
+    // MARK: - Manual Session Persistence
+    func saveSessionManually(_ session: Session) async {
+        do {
+            let encoder = JSONEncoder()
+            let sessionData = try encoder.encode(session)
+            
+            // UserDefaults에 저장
+            UserDefaults.standard.set(sessionData, forKey: "manual.supabase.session")
+            print("💾 SupabaseService: 수동 세션 저장 완료 - UserDefaults")
+            
+            // 키체인에도 저장 (더 안전함)
+            let keychain = Keychain(service: "com.coby.ssafyhub.session")
+            try keychain.set(sessionData, key: "manual.session")
+            print("🔑 SupabaseService: 수동 세션 저장 완료 - 키체인")
+            
+        } catch {
+            print("❌ SupabaseService: 수동 세션 저장 실패: \(error)")
+        }
+    }
+    
+    func restoreSessionManually() async -> Session? {
+        do {
+            // 먼저 키체인에서 시도
+            let keychain = Keychain(service: "com.coby.ssafyhub.session")
+            if let sessionData = try? keychain.getData("manual.session") {
+                let decoder = JSONDecoder()
+                let session = try decoder.decode(Session.self, from: sessionData)
+                print("🔑 SupabaseService: 키체인에서 수동 세션 복구 성공")
+                return session
+            }
+            
+            // UserDefaults에서 시도
+            if let sessionData = UserDefaults.standard.data(forKey: "manual.supabase.session") {
+                let decoder = JSONDecoder()
+                let session = try decoder.decode(Session.self, from: sessionData)
+                print("💾 SupabaseService: UserDefaults에서 수동 세션 복구 성공")
+                return session
+            }
+            
+            print("⚠️ SupabaseService: 수동 저장된 세션 없음")
+            return nil
+            
+        } catch {
+            print("❌ SupabaseService: 수동 세션 복구 실패: \(error)")
+            return nil
+        }
     }
 }

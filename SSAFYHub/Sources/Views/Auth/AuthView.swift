@@ -5,6 +5,7 @@ struct AuthView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var appCoordinator: AppCoordinator
     @State private var selectedCampus: Campus = .seoul
+    @State private var isAppleSignInInProgress = false  // Apple 로그인 진행 상태 추가
     
     var body: some View {
         NavigationView {
@@ -44,12 +45,12 @@ struct AuthView: View {
                     .signInWithAppleButtonStyle(.black)
                     .frame(height: 50)
                     .padding(.horizontal, 40)
-                    .disabled(authViewModel.isLoading)
+                    .disabled(authViewModel.isLoading || isAppleSignInInProgress)  // 중복 실행 방지
                     
                     // Guest Mode Button
                     Button(action: {
                         print("🎯 게스트 모드 선택됨")
-                        appCoordinator.navigateToCampusSelection()
+                        handleGuestMode()
                     }) {
                         HStack {
                             Image(systemName: "person.crop.circle")
@@ -63,10 +64,10 @@ struct AuthView: View {
                         .cornerRadius(25)
                     }
                     .padding(.horizontal, 40)
-                    .disabled(authViewModel.isLoading)
+                    .disabled(authViewModel.isLoading || isAppleSignInInProgress)  // 중복 실행 방지
                     
                     // Loading Indicator
-                    if authViewModel.isLoading {
+                    if authViewModel.isLoading || isAppleSignInInProgress {
                         HStack {
                             ProgressView()
                                 .scaleEffect(0.8)
@@ -102,48 +103,72 @@ struct AuthView: View {
         }
     }
     
-    // MARK: - Apple Sign In Handler
     private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) {
+        // 중복 실행 방지
+        guard !isAppleSignInInProgress else {
+            print("⚠️ Apple 로그인이 이미 진행 중입니다")
+            return
+        }
+        
+        isAppleSignInInProgress = true  // 로그인 진행 상태 설정
+        
         switch result {
         case .success(let authorization):
-            guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-                authViewModel.errorMessage = "Apple ID 인증 정보를 가져올 수 없습니다."
-                return
-            }
-            
+            print("🍎 Apple 로그인 성공, Supabase 인증 시작")
             Task {
-                await performAppleSignIn(credential: appleIDCredential)
+                do {
+                    await authViewModel.signInWithAppleAndNavigate()
+                    
+                    // 로그인 성공 후 상태 초기화
+                    await MainActor.run {
+                        isAppleSignInInProgress = false
+                        print("✅ Apple 로그인 완료, 상태 초기화됨")
+                    }
+                } catch {
+                    // 로그인 실패 시 상태 초기화
+                    await MainActor.run {
+                        isAppleSignInInProgress = false
+                        print("❌ Apple 로그인 실패, 상태 초기화됨")
+                    }
+                }
             }
-            
         case .failure(let error):
-            print("🍎 Apple 로그인 실패: \(error)")
+            print("❌ Apple 로그인 실패: \(error)")
+            
+            // 로그인 실패 시 상태 초기화
+            isAppleSignInInProgress = false
+            
+            // 사용자 친화적인 에러 메시지 표시
+            let errorMessage: String
             if let authError = error as? ASAuthorizationError {
                 switch authError.code {
                 case .canceled:
-                    print("🍎 사용자가 Apple 로그인 취소")
-                    // 사용자가 취소한 경우 에러 메시지 표시하지 않음
+                    errorMessage = "Apple 로그인이 취소되었습니다."
                 case .failed:
-                    authViewModel.errorMessage = "Apple 로그인에 실패했습니다."
+                    errorMessage = "Apple 로그인에 실패했습니다. 다시 시도해주세요."
                 case .invalidResponse:
-                    authViewModel.errorMessage = "Apple 로그인 응답이 유효하지 않습니다."
+                    errorMessage = "Apple 로그인 응답이 유효하지 않습니다. 다시 시도해주세요."
                 case .notHandled:
-                    authViewModel.errorMessage = "Apple 로그인이 처리되지 않았습니다."
+                    errorMessage = "Apple 로그인이 처리되지 않았습니다. 다시 시도해주세요."
                 case .unknown:
-                    authViewModel.errorMessage = "Apple 로그인 중 알 수 없는 오류가 발생했습니다."
+                    errorMessage = "Apple 로그인 중 오류가 발생했습니다. 다시 시도해주세요."
                 @unknown default:
-                    authViewModel.errorMessage = "Apple 로그인 중 오류가 발생했습니다."
+                    errorMessage = "Apple 로그인 중 오류가 발생했습니다. 다시 시도해주세요."
                 }
             } else {
-                authViewModel.errorMessage = "Apple 로그인에 실패했습니다: \(error.localizedDescription)"
+                errorMessage = "Apple 로그인에 실패했습니다: \(error.localizedDescription)"
             }
+            
+            authViewModel.errorMessage = errorMessage
         }
     }
     
-    private func performAppleSignIn(credential: ASAuthorizationAppleIDCredential) async {
-        print("🍎 Apple 로그인 성공, Supabase 인증 시작")
+    private func handleGuestMode() {
+        print("🎯 게스트 모드 처리 시작")
         
-        // Apple 로그인 성공 시 새로운 메서드 사용
-        await authViewModel.signInWithAppleAndNavigate()
+        // 게스트 모드 시작 - 캠퍼스 선택 화면으로 이동
+        // 실제 게스트 사용자 생성은 캠퍼스 선택 후에 이루어짐
+        appCoordinator.navigateToCampusSelection()
     }
 }
 

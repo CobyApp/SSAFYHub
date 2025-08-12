@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email TEXT UNIQUE,
     campus_id TEXT NOT NULL CHECK (campus_id IN ('seoul', 'daejeon', 'gwangju', 'gumi', 'busan')),
+    user_type TEXT NOT NULL DEFAULT 'authenticated' CHECK (user_type IN ('guest', 'authenticated')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -92,3 +93,6 @@ $$ LANGUAGE plpgsql;
 -- INSERT INTO users (email, campus_id) VALUES ('test@example.com', 'seoul');
 -- INSERT INTO menus (date, campus_id, items_a, items_b, updated_by) 
 -- VALUES ('2024-01-01', 'seoul', ARRAY['백미밥', '미역국', '제육볶음'], ARRAY['잡곡밥', '된장국', '닭볶음'], 'test@example.com');
+
+-- Migration script for existing users (run this if you have existing data)
+-- UPDATE users SET user_type = 'authenticated' WHERE user_type IS NULL;
