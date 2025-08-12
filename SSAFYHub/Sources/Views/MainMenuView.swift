@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MainMenuView: View {
+    @EnvironmentObject var authViewModel: AuthViewModel
     @StateObject private var menuViewModel = MenuViewModel()
     @State private var showMenuEditor = false
     @State private var showSettings = false
@@ -25,9 +26,16 @@ struct MainMenuView: View {
                                 .font(.title2)
                                 .fontWeight(.semibold)
                             
-                            Text(menuViewModel.selectedCampus.displayName)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                            // 사용자 캠퍼스 정보 표시
+                            if let currentUser = authViewModel.currentUser {
+                                Text(currentUser.campus.displayName)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text(menuViewModel.selectedCampus.displayName)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                         
                         Spacer()
@@ -94,6 +102,13 @@ struct MainMenuView: View {
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
+            }
+        }
+        .onAppear {
+            // 사용자 캠퍼스 정보로 MenuViewModel 초기화
+            if let currentUser = authViewModel.currentUser {
+                menuViewModel.selectedCampus = currentUser.campus
+                print("🏫 MainMenuView: 사용자 캠퍼스 \(currentUser.campus.displayName)로 초기화")
             }
         }
     }

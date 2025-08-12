@@ -2,8 +2,8 @@ import SwiftUI
 import AuthenticationServices
 
 struct AuthView: View {
-    @StateObject private var authViewModel = AuthViewModel()
-    @State private var showCampusSelection = false
+    @EnvironmentObject var authViewModel: AuthViewModel
+    @EnvironmentObject var appCoordinator: AppCoordinator
     @State private var selectedCampus: Campus = .seoul
     
     var body: some View {
@@ -30,8 +30,8 @@ struct AuthView: View {
                 
                 Spacer()
                 
-                // Sign In Button
-                VStack(spacing: 16) {
+                // Sign In Options
+                VStack(spacing: 20) {
                     // Apple Sign In Button
                     SignInWithAppleButton(
                         onRequest: { request in
@@ -44,47 +44,12 @@ struct AuthView: View {
                     .signInWithAppleButtonStyle(.black)
                     .frame(height: 50)
                     .padding(.horizontal, 40)
+                    .disabled(authViewModel.isLoading)
                     
-                    // 임시 테스트 로그인 버튼 (Apple 로그인 문제 해결 후 제거)
+                    // Guest Mode Button
                     Button(action: {
-                        Task {
-                            await authViewModel.signInWithApple()
-                        }
-                    }) {
-                        HStack {
-                            Image(systemName: "person.circle.fill")
-                            Text("테스트 로그인 (Apple 로그인 문제 해결 후 제거)")
-                        }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.green)
-                        .cornerRadius(25)
-                    }
-                    .padding(.horizontal, 40)
-                    
-                    // Or Divider
-                    HStack {
-                        Rectangle()
-                            .frame(height: 1)
-                            .foregroundColor(.secondary.opacity(0.3))
-                        
-                        Text("또는")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 16)
-                        
-                        Rectangle()
-                            .frame(height: 1)
-                            .foregroundColor(.secondary.opacity(0.3))
-                    }
-                    .padding(.horizontal, 40)
-                    
-                    // Guest Sign In Button
-                    Button(action: {
-                        // 게스트 로그인 (캠퍼스 선택으로 이동)
-                        showCampusSelection = true
+                        print("🎯 게스트 모드 선택됨")
+                        appCoordinator.navigateToCampusSelection()
                     }) {
                         HStack {
                             Image(systemName: "person.crop.circle")
@@ -98,6 +63,19 @@ struct AuthView: View {
                         .cornerRadius(25)
                     }
                     .padding(.horizontal, 40)
+                    .disabled(authViewModel.isLoading)
+                    
+                    // Loading Indicator
+                    if authViewModel.isLoading {
+                        HStack {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Text("로그인 중...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 8)
+                    }
                 }
                 
                 Spacer()
@@ -109,12 +87,8 @@ struct AuthView: View {
             }
             .padding()
             .navigationBarHidden(true)
-            .sheet(isPresented: $showCampusSelection) {
-                CampusSelectionView(selectedCampus: $selectedCampus) {
-                    // 게스트 사용자로 메인 화면으로 이동
-                    // TODO: 게스트 사용자 처리
-                }
-            }
+            .navigationTitle("")
+            .navigationBarBackButtonHidden(true)
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .alert("로그인 오류", isPresented: .constant(authViewModel.errorMessage != nil)) {
@@ -142,7 +116,26 @@ struct AuthView: View {
             }
             
         case .failure(let error):
-            authViewModel.errorMessage = "Apple 로그인에 실패했습니다: \(error.localizedDescription)"
+            print("🍎 Apple 로그인 실패: \(error)")
+            if let authError = error as? ASAuthorizationError {
+                switch authError.code {
+                case .canceled:
+                    print("🍎 사용자가 Apple 로그인 취소")
+                    // 사용자가 취소한 경우 에러 메시지 표시하지 않음
+                case .failed:
+                    authViewModel.errorMessage = "Apple 로그인에 실패했습니다."
+                case .invalidResponse:
+                    authViewModel.errorMessage = "Apple 로그인 응답이 유효하지 않습니다."
+                case .notHandled:
+                    authViewModel.errorMessage = "Apple 로그인이 처리되지 않았습니다."
+                case .unknown:
+                    authViewModel.errorMessage = "Apple 로그인 중 알 수 없는 오류가 발생했습니다."
+                @unknown default:
+                    authViewModel.errorMessage = "Apple 로그인 중 오류가 발생했습니다."
+                }
+            } else {
+                authViewModel.errorMessage = "Apple 로그인에 실패했습니다: \(error.localizedDescription)"
+            }
         }
     }
     
@@ -156,15 +149,10 @@ struct AuthView: View {
                 return
             }
             
-            let user = try await authViewModel.supabaseService.authenticateWithApple(
-                identityToken: identityToken
-            )
+            print("🍎 Apple 로그인 성공, Supabase 인증 시작")
             
-            // 로그인 성공 시 캠퍼스 선택 화면으로 이동
-            await MainActor.run {
-                selectedCampus = user.campus
-                showCampusSelection = true
-            }
+            // Apple 로그인 성공 시 새로운 메서드 사용
+            await authViewModel.signInWithAppleAndNavigate()
             
         } catch {
             await MainActor.run {
@@ -174,112 +162,8 @@ struct AuthView: View {
     }
 }
 
-// MARK: - Campus Selection View
-struct CampusSelectionView: View {
-    @Binding var selectedCampus: Campus
-    let onComplete: () -> Void
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 24) {
-                // Header
-                VStack(spacing: 16) {
-                    Image(systemName: "building.2")
-                        .font(.system(size: 60))
-                        .foregroundColor(.blue)
-                    
-                    Text("캠퍼스를 선택해주세요")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                    
-                    Text("선택한 캠퍼스의 점심 메뉴를 확인할 수 있습니다")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 32)
-                
-                // Campus Options
-                VStack(spacing: 16) {
-                    ForEach(Campus.allCases, id: \.self) { campus in
-                        CampusOptionRow(
-                            campus: campus,
-                            isSelected: selectedCampus == campus
-                        ) {
-                            selectedCampus = campus
-                        }
-                    }
-                }
-                .padding(.horizontal)
-                
-                Spacer()
-                
-                // Continue Button
-                Button(action: {
-                    onComplete()
-                    dismiss()
-                }) {
-                    Text("계속하기")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.blue)
-                        .cornerRadius(25)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 32)
-            }
-            .navigationTitle("캠퍼스 선택")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("취소") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Campus Option Row
-struct CampusOptionRow: View {
-    let campus: Campus
-    let isSelected: Bool
-    let onTap: () -> Void
-    
-    var body: some View {
-        Button(action: onTap) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(campus.displayName)
-                        .font(.headline)
-                        .foregroundColor(isSelected ? .white : .primary)
-                    
-                    Text(campus.description)
-                        .font(.caption)
-                        .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
-                }
-                
-                Spacer()
-                
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.white)
-                        .font(.title2)
-                }
-            }
-            .padding()
-            .background(isSelected ? Color.blue : Color(.systemGray6))
-            .cornerRadius(12)
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
-
 #Preview {
     AuthView()
+        .environmentObject(AuthViewModel())
+        .environmentObject(AppCoordinator())
 }
