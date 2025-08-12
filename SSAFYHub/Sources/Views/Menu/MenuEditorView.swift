@@ -171,7 +171,7 @@ struct MenuEditorView: View {
         
         Task {
             do {
-                let text = try await ocrService.extractText(from: image)
+                let text = try await ocrService.extractTextFromImage(image)
                 let parsedMenu = ocrService.parseMenuFromText(text)
                 
                 await MainActor.run {
@@ -201,7 +201,14 @@ struct MenuEditorView: View {
     
     private func saveMenu() {
         Task {
-            await menuViewModel.saveMenu(itemsA: itemsA, itemsB: itemsB)
+            let menuInput = MenuInput(
+                date: date,
+                campus: menuViewModel.selectedCampus,
+                itemsA: itemsA,
+                itemsB: itemsB
+            )
+            
+            await menuViewModel.saveMenu(menuInput: menuInput, updatedBy: nil)
             
             if menuViewModel.errorMessage == nil {
                 dismiss()

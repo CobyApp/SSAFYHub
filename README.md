@@ -1,183 +1,127 @@
-# SSAFY 점심식단 앱 (SSAWorld)
+# SSAFYHub
 
-SSAFY 캠퍼스의 점심 식단을 확인하고 관리할 수 있는 iOS 앱입니다.
+SSAFY 캠퍼스별 점심식단을 확인하고 공유할 수 있는 iOS 앱입니다.
 
 ## 🚀 주요 기능
 
-### MVP 기능
-- **인증 & 사용자 관리**
-  - Apple 로그인
-  - 캠퍼스 선택 (서울/대전/광주/구미/부산)
-  - 프로필 관리
+- **🍎 Apple 로그인**: 간편한 Apple ID를 통한 인증
+- **🏫 캠퍼스별 식단**: 서울, 대전, 광주, 구미, 부산 캠퍼스 지원
+- **📅 날짜별 네비게이션**: 이전/다음/오늘 날짜로 메뉴 확인
+- **✏️ 메뉴 편집**: 수동으로 메뉴 입력 및 수정
+- **📸 OCR 메뉴 인식**: 식단 사진에서 자동으로 메뉴 추출
+- **🔄 실시간 동기화**: Supabase를 통한 실시간 데이터 동기화
+- **⚙️ 설정 관리**: 캠퍼스 변경, 로그아웃, 계정 삭제
 
-- **메인 화면**
-  - 오늘 점심 식단 표시
-  - A타입/B타입 메뉴 구분
-  - 날짜별 이동 (월~금)
-  - 주 단위 자동 갱신
+## 🛠️ 기술 스택
 
-- **식단 등록 & 수정**
-  - 직접 입력 (멀티라인 텍스트)
-  - 이미지 OCR 자동 입력
-  - 사진 촬영 또는 앨범 선택
-  - 수정 이력 관리
-
-- **설정**
-  - 캠퍼스 변경
-  - 로그아웃
-  - 회원 탈퇴
-
-### 기술 스택
 - **Frontend**: SwiftUI
-- **Backend**: Supabase (PostgreSQL)
-- **Authentication**: Supabase Auth
+- **Backend**: Supabase (PostgreSQL + Auth)
+- **Build System**: Tuist
+- **Authentication**: Apple Sign In
 - **OCR**: Vision Framework
-- **Build Tool**: Tuist
+- **Architecture**: MVVM 패턴
 
 ## 📱 앱 구조
 
 ```
-SSAWorld/
+SSAFYHub/
 ├── Sources/
 │   ├── Models/          # 데이터 모델
 │   ├── Services/        # 비즈니스 로직
-│   ├── ViewModels/      # UI 상태 관리
+│   ├── ViewModels/      # 뷰 모델
 │   ├── Views/           # UI 컴포넌트
-│   └── SSAWorldApp.swift # 앱 진입점
-├── Resources/           # 앱 리소스
-├── Tests/              # 테스트 코드
-├── Tuist/              # 프로젝트 설정
-└── database/           # 데이터베이스 스키마
+│   └── SSAFYHubApp.swift # 앱 진입점
+└── database/
+    └── schema.sql       # 데이터베이스 스키마
 ```
 
-## 🛠️ 개발 환경 설정
+## 🚀 시작하기
 
 ### 필수 요구사항
+
 - Xcode 15.0+
-- iOS 17.0+
+- iOS 18.0+
 - Tuist 4.0+
 - Supabase 계정
 
-### 1. 프로젝트 클론
-```bash
-git clone <repository-url>
-cd SSAWorld
-```
+### 설치 및 실행
 
-### 2. Tuist 설치 (macOS)
-```bash
-curl -Ls https://install.tuist.io | bash
-```
+1. **프로젝트 클론**
+   ```bash
+   git clone <repository-url>
+   cd SSAFYHub
+   ```
 
-### 3. 프로젝트 생성
-```bash
-tuist generate
-```
+2. **Tuist 설치 (필요시)**
+   ```bash
+   curl -Ls https://install.tuist.io | bash
+   ```
 
-### 4. Supabase 설정
-1. [Supabase](https://supabase.com)에서 새 프로젝트 생성
-2. `database/schema.sql` 실행하여 데이터베이스 스키마 생성
-3. `SSAWorld/Sources/Services/SupabaseService.swift`에서 URL과 API 키 업데이트
+3. **프로젝트 생성**
+   ```bash
+   tuist generate
+   ```
 
-```swift
-let supabaseURL = "YOUR_SUPABASE_URL"
-let supabaseAnonKey = "YOUR_SUPABASE_ANON_KEY"
-```
+4. **Xcode에서 열기**
+   ```bash
+   open SSAFYHub.xcworkspace
+   ```
 
-### 5. Xcode에서 프로젝트 열기
-```bash
-open SSAWorld.xcodeproj
-```
+5. **빌드 및 실행**
+   - iPhone 시뮬레이터 선택
+   - Run 버튼 클릭
 
-## 🗄️ 데이터베이스 스키마
+## 🔧 설정
+
+### Supabase 설정
+
+1. Supabase 프로젝트 생성
+2. `database/schema.sql` 실행하여 테이블 생성
+3. `SSAFYHub/Sources/Services/SupabaseService.swift`에서 URL과 API 키 설정
+
+### Apple Sign In 설정
+
+1. Apple Developer 계정에서 App ID 설정
+2. Signing & Capabilities에서 Apple Sign In 활성화
+3. Bundle ID를 `com.coby.ssafyhub`로 설정
+
+## 📊 데이터베이스 스키마
 
 ### Users 테이블
-- `id`: UUID (Primary Key)
-- `email`: 사용자 이메일
-- `campus_id`: 캠퍼스 ID
-- `created_at`: 생성 시간
-- `updated_at`: 수정 시간
+- 사용자 정보 및 캠퍼스 설정
 
 ### Menus 테이블
-- `id`: UUID (Primary Key)
-- `date`: 날짜
-- `campus_id`: 캠퍼스 ID
-- `items_a`: A타입 메뉴 배열
-- `items_b`: B타입 메뉴 배열
-- `updated_at`: 수정 시간
-- `updated_by`: 수정자 ID
-- `revision`: 수정 버전
+- 날짜별 캠퍼스별 식단 정보
+- A타입/B타입 메뉴 구분
+- 덮어씌우기 방식으로 메뉴 관리
 
-## 📱 앱 사용법
+## 🎯 주요 특징
 
-### 1. 로그인
-- 앱 실행 시 Apple 계정으로 로그인
-- 최초 로그인 시 캠퍼스 선택
+### 덮어씌우기 시스템
+- 같은 날짜 + 같은 캠퍼스 = 하나의 메뉴만 존재
+- 새로운 메뉴 등록 시 기존 것을 자동으로 덮어씌움
+- 누구나 수정/등록 가능
 
-### 2. 메뉴 확인
-- 메인 화면에서 오늘 메뉴 확인
-- 좌우 스와이프로 다른 날짜 이동
-- "오늘로" 버튼으로 오늘 날짜로 이동
+### 실시간 동기화
+- Supabase를 통한 실시간 데이터 업데이트
+- 모든 사용자가 동일한 식단 정보 공유
 
-### 3. 메뉴 등록/수정
-- "메뉴 추가/수정" 버튼 클릭
-- 직접 입력 또는 이미지 OCR 사용
-- 사진 촬영 또는 앨범에서 선택
-- A타입/B타입 메뉴 입력 후 저장
+### OCR 메뉴 인식
+- Vision Framework를 사용한 텍스트 인식
+- 식단 사진에서 자동으로 메뉴 추출
+- A타입/B타입 자동 구분
 
-### 4. 설정
-- 우상단 설정 버튼 클릭
-- 캠퍼스 변경, 로그아웃, 회원 탈퇴
+## 🔒 보안
 
-## 🔧 개발 가이드
+- Row Level Security (RLS) 적용
+- 사용자별 데이터 접근 제어
+- Apple ID를 통한 안전한 인증
 
-### 새로운 기능 추가
-1. `Models/`에 데이터 모델 정의
-2. `Services/`에 비즈니스 로직 구현
-3. `ViewModels/`에 UI 상태 관리
-4. `Views/`에 UI 컴포넌트 구현
+## 📝 라이선스
 
-### 의존성 추가
-```bash
-# Tuist/Package.swift에 의존성 추가
-.package(url: "https://github.com/example/package.git", from: "1.0.0")
+이 프로젝트는 SSAFY 교육용으로 제작되었습니다.
 
-# Project.swift에 타겟 의존성 추가
-dependencies: [.external(name: "PackageName")]
-```
-
-### 빌드 및 테스트
-```bash
-# 프로젝트 생성
-tuist generate
-
-# 테스트 실행
-tuist test
-
-# 프로젝트 정리
-tuist clean
-```
-
-## 🚀 배포
-
-### 1. 버전 업데이트
-- `Project.swift`에서 버전 번호 수정
-- `SettingsView.swift`에서 앱 버전 표시 업데이트
-
-### 2. 빌드
-```bash
-tuist build --configuration Release
-```
-
-### 3. App Store Connect 업로드
-- Xcode에서 Archive 생성
-- App Store Connect에 업로드
-
-## 📄 라이선스
-
-이 프로젝트는 MIT 라이선스 하에 배포됩니다.
-
-## 🤝 기여
+## 🤝 기여하기
 
 1. Fork the Project
 2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
@@ -187,8 +131,8 @@ tuist build --configuration Release
 
 ## 📞 문의
 
-프로젝트에 대한 문의사항이 있으시면 이슈를 생성해주세요.
+프로젝트에 대한 문의사항이 있으시면 이슈를 생성해 주세요.
 
 ---
 
-**SSAFY 점심식단 앱** - 매일의 점심 메뉴를 한눈에! 🍽️
+**SSAFYHub** - SSAFY 캠퍼스별 점심식단 앱 🍽️

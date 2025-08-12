@@ -1,52 +1,57 @@
 import ProjectDescription
 
 let project = Project(
-    name: "SSAWorld",
+    name: "SSAFYHub",
     targets: [
         .target(
-            name: "SSAWorld",
-            destinations: .iOS,
+            name: "SSAFYHub",
+            destinations: [.iPhone],
             product: .app,
-            bundleId: "com.coby.ssaworld",
-            infoPlist: .extendingDefault(
-                with: [
-                    "UILaunchScreen": [
-                        "UIColorName": "",
-                        "UIImageName": "",
-                    ],
-                    "CFBundleURLTypes": [
-                        [
-                            "CFBundleURLName": "com.coby.ssaworld",
-                            "CFBundleURLSchemes": ["com.coby.ssaworld"]
+            bundleId: "com.coby.ssafyhub",
+            infoPlist: .extendingDefault(with: [
+                "CFBundleDisplayName": "SSAFYHub",
+                "CFBundleName": "SSAFYHub",
+                "UIApplicationSceneManifest": [
+                    "UIApplicationSupportsMultipleScenes": false,
+                    "UISceneConfigurations": [
+                        "UIWindowSceneSessionRoleApplication": [
+                            [
+                                "UISceneConfigurationName": "Default Configuration"
+                            ]
                         ]
-                    ],
-                    "NSCameraUsageDescription": "식단 사진을 촬영하여 메뉴를 자동으로 인식합니다.",
-                    "NSPhotoLibraryUsageDescription": "앨범에서 식단 사진을 선택하여 메뉴를 자동으로 인식합니다.",
-                    "CFBundleDisplayName": "SSAFY 점심식단",
-                    "CFBundleName": "SSAFY 점심식단"
-                ]
-            ),
-            sources: ["SSAWorld/Sources/**"],
-            resources: ["SSAWorld/Resources/**"],
+                    ]
+                ],
+                "UILaunchScreen": [:],
+                "UIStatusBarStyle": "UIStatusBarStyleDefault",
+                "UIViewControllerBasedStatusBarAppearance": false
+            ]),
+            sources: ["SSAFYHub/Sources/**"],
+            resources: ["SSAFYHub/Resources/**"],
+            entitlements: "SSAFYHub/SSAFYHub.entitlements",
             dependencies: [
                 .external(name: "Supabase")
             ],
             settings: .settings(
                 base: [
                     "DEVELOPMENT_TEAM": "3Y8YH8GWMM",
-                    "TARGETED_DEVICE_FAMILY": "1" // iPhone만 지원 (1: iPhone, 2: iPad, 1,2: iPhone + iPad)
+                    "TARGETED_DEVICE_FAMILY": "1",
+                    "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
+                    "SUPPORTED_PLATFORMS": "iphoneos",
+                    "SUPPORTS_MACCATALYST": "NO",
+                    "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "NO",
+                    "CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION": "YES"
                 ]
             )
         ),
         .target(
-            name: "SSAWorldTests",
-            destinations: .iOS,
+            name: "SSAFYHubTests",
+            destinations: [.iPhone],
             product: .unitTests,
-            bundleId: "com.coby.ssaworldTests",
+            bundleId: "com.coby.ssafyhub.Tests",
             infoPlist: .default,
-            sources: ["SSAWorld/Tests/**"],
+            sources: ["SSAFYHub/Tests/**"],
             resources: [],
-            dependencies: [.target(name: "SSAWorld")],
+            dependencies: [.target(name: "SSAFYHub")],
             settings: .settings(
                 base: [
                     "DEVELOPMENT_TEAM": "3Y8YH8GWMM"

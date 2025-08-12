@@ -3,7 +3,7 @@ import Foundation
 // MARK: - User
 struct User: Codable, Identifiable, Equatable {
     let id: String
-    let email: String?
+    let email: String
     let campus: Campus
     let createdAt: Date
     let updatedAt: Date

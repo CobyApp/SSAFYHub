@@ -32,64 +32,41 @@ class MenuViewModel: ObservableObject {
         }
     }
     
-    func goToToday() {
-        currentDate = Date()
-        loadMenuForCurrentDate()
-    }
-    
-    // MARK: - Menu Loading
     func loadTodayMenu() {
         currentDate = Date()
         loadMenuForCurrentDate()
     }
     
     func loadMenuForCurrentDate() {
-        Task {
-            await loadMenu(for: currentDate)
-        }
-    }
-    
-    private func loadMenu(for date: Date) async {
         isLoading = true
         errorMessage = nil
-        
-        do {
-            currentMenu = try await supabaseService.fetchMenu(for: date, campus: selectedCampus)
-        } catch {
-            errorMessage = "메뉴를 불러오는데 실패했습니다: \(error.localizedDescription)"
+        Task {
+            do {
+                self.currentMenu = try await supabaseService.fetchMenu(date: currentDate, campus: selectedCampus)
+            } catch {
+                self.errorMessage = "메뉴를 불러오는 데 실패했습니다: \(error.localizedDescription)"
+                self.currentMenu = nil
+            }
+            isLoading = false
         }
-        
-        isLoading = false
     }
     
     // MARK: - Campus Management
-    func updateCampus(_ campus: Campus) {
-        selectedCampus = campus
+    func updateCampus(newCampus: Campus) {
+        selectedCampus = newCampus
         loadMenuForCurrentDate()
     }
     
-    // MARK: - Menu Management
-    func saveMenu(itemsA: [String], itemsB: [String]) async {
+    // MARK: - Menu Saving
+    func saveMenu(menuInput: MenuInput, updatedBy: String?) async {
         isLoading = true
         errorMessage = nil
-        
         do {
-            let menuInput = MenuInput(
-                date: currentDate,
-                campus: selectedCampus,
-                itemsA: itemsA,
-                itemsB: itemsB
-            )
-            
-            if let existingMenu = currentMenu {
-                currentMenu = try await supabaseService.updateMenu(existingMenu, with: menuInput)
-            } else {
-                currentMenu = try await supabaseService.saveMenu(menuInput)
-            }
+            try await supabaseService.saveMenu(menuInput: menuInput, updatedBy: updatedBy)
+            loadMenuForCurrentDate() // Reload menu after saving
         } catch {
             errorMessage = "메뉴 저장에 실패했습니다: \(error.localizedDescription)"
         }
-        
         isLoading = false
     }
     

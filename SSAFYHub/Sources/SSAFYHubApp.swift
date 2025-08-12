@@ -1,20 +1,20 @@
 import SwiftUI
 
 @main
-struct SSAWorldApp: App {
+struct SSAFYHubApp: App {
     @StateObject private var authViewModel = AuthViewModel()
     
     var body: some Scene {
         WindowGroup {
-            Group {
+            ZStack {
                 switch authViewModel.authState {
                 case .loading:
                     LoadingView()
-                case .authenticated:
+                case .unauthenticated:
+                    AuthView()
+                case .authenticated(_):
                     MainMenuView()
                         .environmentObject(authViewModel)
-                case .unauthenticated:
-                    AuthView(authViewModel: authViewModel)
                 }
             }
             .animation(.easeInOut, value: authViewModel.authState)
@@ -27,14 +27,11 @@ struct LoadingView: View {
     var body: some View {
         VStack(spacing: 20) {
             ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: .blue))
                 .scaleEffect(1.5)
             
             Text("로딩 중...")
-                .font(.headline)
+                .font(.title2)
                 .foregroundColor(.secondary)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
     }
 }

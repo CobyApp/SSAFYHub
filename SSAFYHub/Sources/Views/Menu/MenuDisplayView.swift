@@ -28,13 +28,15 @@ struct MenuDisplayView: View {
                 
                 Spacer()
                 
-                Text("v\(menu.revision)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Color(.systemGray5))
-                    .cornerRadius(4)
+                if let updatedBy = menu.updatedBy {
+                    Text("수정자: \(updatedBy)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color(.systemGray5))
+                        .cornerRadius(4)
+                }
             }
             .padding(.horizontal)
         }
@@ -115,8 +117,7 @@ struct EmptyMenuView: View {
             itemsA: ["백미밥", "미역국", "제육볶음"],
             itemsB: ["잡곡밥", "된장국", "닭볶음"],
             updatedAt: Date(),
-            updatedBy: "user1",
-            revision: 1
+            updatedBy: "user@example.com"
         ))
         
         EmptyMenuView()

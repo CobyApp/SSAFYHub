@@ -8,8 +8,7 @@ struct Menu: Codable, Identifiable {
     let itemsA: [String]
     let itemsB: [String]
     let updatedAt: Date
-    let updatedBy: String
-    let revision: Int
+    let updatedBy: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -19,7 +18,6 @@ struct Menu: Codable, Identifiable {
         case itemsB = "items_b"
         case updatedAt = "updated_at"
         case updatedBy = "updated_by"
-        case revision
     }
 }
 
