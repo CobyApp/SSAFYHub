@@ -6,12 +6,21 @@ class AppCoordinator: ObservableObject {
     @Published var currentRoute: AppRoute = .auth
     @Published var navigationPath = NavigationPath()
     @Published var transitionAnimation: Animation = .easeInOut(duration: 0.3)
+    @Published var selectedCampus: Campus = .daejeon
     
     // MARK: - App Routes
     enum AppRoute: Hashable {
         case auth
         case campusSelection
         case mainMenu
+    }
+    
+    // MARK: - 초기화
+    init() {
+        print("🧭 Coordinator 초기화됨")
+        self.currentRoute = .auth
+        self.selectedCampus = Campus.default // 기본값을 대전으로 설정
+        print("🏫 기본 캠퍼스 설정: \(selectedCampus.displayName)")
     }
     
     // MARK: - Navigation Methods with Smart Logic

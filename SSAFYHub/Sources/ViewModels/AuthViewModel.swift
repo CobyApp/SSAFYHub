@@ -96,6 +96,23 @@ class AuthViewModel: ObservableObject {
         authState = .unauthenticated
     }
     
+    // 회원탈퇴
+    func deleteAccount() async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            try await supabaseService.deleteAccount()
+            authState = .unauthenticated
+            print("✅ 회원탈퇴 완료")
+        } catch {
+            errorMessage = "회원탈퇴에 실패했습니다: \(error.localizedDescription)"
+            print("❌ 회원탈퇴 실패: \(error)")
+        }
+        
+        isLoading = false
+    }
+    
     func updateUserCampus(_ campus: Campus) async {
         isLoading = true
         errorMessage = nil

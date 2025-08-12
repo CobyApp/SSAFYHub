@@ -76,8 +76,8 @@ struct Menu: Codable, Identifiable {
         do {
             campus = try container.decode(Campus.self, forKey: .campus)
         } catch {
-            print("⚠️ Menu 디코딩: campus_id 필드 누락, 기본값 서울캠퍼스 사용")
-            campus = .seoul
+            print("⚠️ Menu 디코딩: campus_id 필드 누락, 기본값 대전캠퍼스 사용")
+            campus = .daejeon
         }
         
         // items_a 필드가 누락된 경우 기본값 사용

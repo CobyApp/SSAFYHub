@@ -4,7 +4,7 @@ import SwiftUI
 @MainActor
 class MenuViewModel: ObservableObject {
     @Published var currentDate = Date()
-    @Published var selectedCampus: Campus = .seoul
+    @Published var selectedCampus: Campus = .daejeon  // 기본값을 대전으로 변경
     @Published var currentMenu: Menu?
     @Published var isLoading = false
     @Published var errorMessage: String?

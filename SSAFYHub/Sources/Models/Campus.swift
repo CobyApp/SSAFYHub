@@ -23,18 +23,35 @@ enum Campus: String, CaseIterable, Codable {
         }
     }
     
+    var isAvailable: Bool {
+        switch self {
+        case .daejeon:
+            return true
+        default:
+            return false
+        }
+    }
+    
+    var statusMessage: String {
+        switch self {
+        case .daejeon:
+            return "지원됨"
+        default:
+            return "준비중 (추후 확정 예정)"
+        }
+    }
+    
     var description: String {
         switch self {
-        case .seoul:
-            return "서울특별시 강남구 테헤란로 501"
         case .daejeon:
-            return "대전광역시 유성구 동서대로 125"
-        case .gwangju:
-            return "광주광역시 광산구 상무대로 312"
-        case .gumi:
-            return "경상북도 구미시 구미대로 123"
-        case .busan:
-            return "부산광역시 해운대구 센텀중앙로 97"
+            return "현재 지원되는 캠퍼스입니다."
+        default:
+            return "현재 준비중이며, 추후 확정 예정입니다."
         }
+    }
+    
+    // 기본 캠퍼스는 대전
+    static var `default`: Campus {
+        return .daejeon
     }
 }

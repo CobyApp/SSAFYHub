@@ -8,12 +8,9 @@ struct MenuEditorView: View {
     let menuViewModel: MenuViewModel
     let date: Date
     
-    @State private var itemsA: [String] = []
-    @State private var itemsB: [String] = []
-    @State private var isWeeklyMode = false
+    // 주간 메뉴만 사용하므로 단일 메뉴 관련 상태 제거
     @State private var weeklyItemsA: [[String]] = Array(repeating: [], count: 5)
     @State private var weeklyItemsB: [[String]] = Array(repeating: [], count: 5)
-    @State private var selectedDate = Date()  // 선택된 날짜
     @State private var selectedWeekStart = Date()  // 선택된 주의 시작일
     @State private var isSaving = false
     @State private var showingAlert = false
@@ -37,14 +34,6 @@ struct MenuEditorView: View {
         }
     }
     
-    // 선택된 날짜가 월~금인지 확인
-    private var isSelectedDateValid: Bool {
-        let calendar = Calendar.current
-        let weekday = calendar.component(.weekday, from: selectedDate)
-        // 월요일(2) ~ 금요일(6)
-        return weekday >= 2 && weekday <= 6
-    }
-    
     // 선택된 주가 월~금인지 확인
     private var isSelectedWeekValid: Bool {
         let calendar = Calendar.current
@@ -63,229 +52,149 @@ struct MenuEditorView: View {
     
     private let ocrService = OCRService.shared
     @StateObject private var permissionChecker = PermissionChecker()
+    @StateObject private var geminiService = ChatGPTService.shared  // ChatGPTService로 변경
     
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: AppSpacing.xl) {
-                    // 모드 토글 (게스트 사용자는 단일 모드만 가능)
-                    if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
-                        modeToggleView
-                            .padding(.horizontal, AppSpacing.lg)
-                    }
-                    
                     // 날짜 선택 헤더
                     dateSelectionHeader
-                        .padding(.horizontal, AppSpacing.lg)
                     
-                    // 메뉴 입력 폼
-                    if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
-                        // 인증된 사용자: 주간/단일 모드 선택 가능
-                        if isWeeklyMode {
-                            weeklyMenuInputFormsView
-                                .padding(.horizontal, AppSpacing.lg)
-                        } else {
-                            singleMenuInputFormsView
-                                .padding(.horizontal, AppSpacing.lg)
-                        }
-                        
-                        // OCR 기능 버튼들
-                        ocrButtonsView
-                            .padding(.horizontal, AppSpacing.lg)
-                    } else {
-                        // 게스트 사용자: 읽기 전용
-                        guestReadOnlyView
-                            .padding(.horizontal, AppSpacing.lg)
-                    }
+                    // OCR 버튼 (주간 모드에서만 표시)
+                    ocrButtonsView
                     
-                    Spacer(minLength: AppSpacing.xxl)
-                    
-                    // 저장 버튼 (게스트 사용자는 숨김)
-                    if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
-                        saveButtonView
-                            .padding(.horizontal, AppSpacing.lg)
-                    }
+                    // 주간 메뉴 입력 섹션
+                    weeklyMenuSection
                 }
-                .padding(.vertical, AppSpacing.lg)
+                .padding(AppSpacing.lg)
             }
-            .background(AppColors.background)
-            .navigationTitle("메뉴 편집")
+            .navigationTitle("주간 메뉴 등록")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("취소") {
                         dismiss()
                     }
-                    .font(AppTypography.subheadline)
                     .foregroundColor(AppColors.textSecondary)
                 }
-            }
-            .sheet(isPresented: $showingImagePicker) {
-                ImagePicker(selectedImage: $selectedImage)
-            }
-            .sheet(isPresented: $showingCamera) {
-                CameraView(selectedImage: $selectedImage)
-            }
-            .onChange(of: selectedImage) { oldValue, newValue in
-                if let image = newValue {
-                    processImage(image)
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("저장") {
+                        saveMenu()
+                    }
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(AppColors.primary)
+                    .cornerRadius(8)
                 }
             }
-            .alert("알림", isPresented: $showingAlert) {
-                Button("확인") { }
-            } message: {
-                Text(alertMessage)
-            }
+        }
+        .sheet(isPresented: $showingImagePicker) {
+            ImagePicker(selectedImage: $selectedImage)
+                .onDisappear {
+                    if let image = selectedImage {
+                        processImage(image)
+                    }
+                }
+        }
+        .sheet(isPresented: $showingCamera) {
+            CameraView(selectedImage: $selectedImage)
+                .onDisappear {
+                    if let image = selectedImage {
+                        processImage(image)
+                    }
+                }
         }
         .onAppear {
-            // 초기 날짜 설정
+            permissionChecker.checkCameraPermission()
+            permissionChecker.checkPhotoLibraryPermission()
+            
+            // 현재 날짜로 주 시작일 초기화
             let calendar = Calendar.current
             let today = Date()
             let weekday = calendar.component(.weekday, from: today)
             
-            // 오늘이 주말이면 다음 월요일로 설정
+            // 오늘이 주말이면 다음 주 월요일로, 평일이면 이번 주 월요일로 설정
             if weekday == 1 { // 일요일
-                selectedDate = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+                // 다음 주 월요일
+                if let nextMonday = calendar.date(byAdding: .day, value: 1, to: today) {
+                    selectedWeekStart = nextMonday
+                }
             } else if weekday == 7 { // 토요일
-                selectedDate = calendar.date(byAdding: .day, value: 2, to: today) ?? today
+                // 다음 주 월요일
+                if let nextMonday = calendar.date(byAdding: .day, value: 2, to: today) {
+                    selectedWeekStart = nextMonday
+                }
             } else {
-                selectedDate = today
+                // 평일이면 이번 주 월요일
+                let daysFromMonday = weekday - 2 // 월요일이면 0, 화요일이면 1, ...
+                if let monday = calendar.date(byAdding: .day, value: -daysFromMonday, to: today) {
+                    selectedWeekStart = monday
+                }
             }
             
-            // 주간 모드 초기화: 현재 날짜가 포함된 주의 월요일부터 시작
-            selectedWeekStart = selectedDate
-            
-            print("📅 MenuEditorView 초기화")
-            print("📅 오늘: \(today)")
-            print("📅 선택된 날짜: \(selectedDate)")
-            print("📅 주 시작일: \(selectedWeekStart)")
-            print("📅 주간 날짜들: \(weeklyDates.map { $0.formatted(date: .abbreviated, time: .omitted) })")
-            
-            loadExistingMenu()
+            // 기본 메뉴 항목 초기화
+            initializeMenuItems()
         }
-        .alert("알림", isPresented: $showingAlert) {
-            Button("확인") { }
+        .alert("권한 필요", isPresented: $showingPermissionAlert) {
+            Button("설정으로 이동") {
+                if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsUrl)
+                }
+            }
+            Button("취소", role: .cancel) { }
         } message: {
-            Text(alertMessage)
+            Text(permissionAlertMessage)
         }
-    }
-    
-    // MARK: - Mode Toggle View
-    private var modeToggleView: some View {
-        VStack(spacing: AppSpacing.sm) {
-            Text("메뉴 등록 모드")
-                .font(AppTypography.headline)
-                .foregroundColor(AppColors.textPrimary)
-            
-            HStack(spacing: AppSpacing.sm) {
-                Button(action: { isWeeklyMode = false }) {
-                    HStack {
-                        Image(systemName: "calendar")
-                        Text("단일")
-                    }
-                    .font(AppTypography.subheadline)
-                    .foregroundColor(isWeeklyMode ? AppColors.textSecondary : .white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 40)
-                    .background(
-                        isWeeklyMode ? AppColors.backgroundSecondary : AppColors.primary
-                    )
-                    .cornerRadius(AppCornerRadius.medium)
-                }
-                
-                Button(action: { isWeeklyMode = true }) {
-                    HStack {
-                        Image(systemName: "calendar.badge.plus")
-                        Text("주간")
-                    }
-                    .font(AppTypography.subheadline)
-                    .foregroundColor(isWeeklyMode ? .white : AppColors.textSecondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 40)
-                    .background(
-                        isWeeklyMode ? AppColors.primary : AppColors.backgroundSecondary
-                    )
-                    .cornerRadius(AppCornerRadius.medium)
-                }
-            }
-        }
-        .padding(AppSpacing.md)
-        .background(AppColors.backgroundSecondary)
-        .cornerRadius(AppCornerRadius.medium)
     }
     
     // MARK: - Date Selection Header
     private var dateSelectionHeader: some View {
-        VStack(spacing: 20) {
-            if isWeeklyMode {
-                // 주간 모드: 주 선택
-                VStack(spacing: 16) {
-                    Text("주간 메뉴 등록")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundColor(AppColors.textPrimary)
-                    
-                    HStack(spacing: 20) {
-                        Button(action: selectPreviousWeek) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(AppColors.primary)
-                                .frame(width: 40, height: 40)
-                                .background(AppColors.primary.opacity(0.1))
-                                .cornerRadius(20)
-                        }
-                        
-                        VStack(spacing: 8) {
-                            Text(weekRangeText)
-                                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                                .foregroundColor(AppColors.textPrimary)
-                            
-                            Text("월~금 5일을 한번에 등록합니다")
-                                .font(.system(size: 14, weight: .regular, design: .rounded))
-                                .foregroundColor(AppColors.textSecondary)
-                        }
-                        
-                        Button(action: selectNextWeek) {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(AppColors.primary)
-                                .frame(width: 40, height: 40)
-                                .background(AppColors.primary.opacity(0.1))
-                                .cornerRadius(20)
-                        }
-                    }
-                }
-            } else {
-                // 단일 모드: 날짜 선택
-                VStack(spacing: 16) {
-                    Text("단일 메뉴 등록")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundColor(AppColors.textPrimary)
-                    
-                    VStack(spacing: 12) {
-                        DatePicker("날짜 선택", selection: $selectedDate, displayedComponents: .date)
-                            .datePickerStyle(.compact)
-                            .onChange(of: selectedDate) { _, newDate in
-                                // 월~금만 선택 가능하도록 제한
-                                if !isSelectedDateValid {
-                                    // 월~금이 아닌 날짜 선택 시 다음 월요일로 조정
-                                    adjustToNextMonday(newDate)
-                                }
-                            }
-                        
-                        Text(selectedDateText)
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
+        VStack(spacing: AppSpacing.lg) {
+            // 주간 모드: 주 선택
+            VStack(spacing: AppSpacing.md) {
+                Text("주간 메뉴 등록")
+                    .font(AppTypography.title3)
+                    .foregroundColor(AppColors.textPrimary)
+                
+                HStack(spacing: AppSpacing.lg) {
+                    Button(action: selectPreviousWeek) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(AppColors.primary)
+                            .frame(width: 40, height: 40)
+                            .background(AppColors.primary.opacity(0.1))
+                            .cornerRadius(AppCornerRadius.pill)
+                    }
+                    
+                    VStack(spacing: AppSpacing.sm) {
+                        Text(weekRangeText)
+                            .font(AppTypography.title2)
+                            .foregroundColor(AppColors.textPrimary)
                         
-                        Text("월~금 중 하루를 선택하세요")
-                            .font(.system(size: 14, weight: .regular, design: .rounded))
+                        Text("월~금 5일을 한번에 등록합니다")
+                            .font(AppTypography.subheadline)
                             .foregroundColor(AppColors.textSecondary)
+                    }
+                    
+                    Button(action: selectNextWeek) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(AppColors.primary)
+                            .frame(width: 40, height: 40)
+                            .background(AppColors.primary.opacity(0.1))
+                            .cornerRadius(AppCornerRadius.pill)
                     }
                 }
             }
         }
-        .padding(24)
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(20)
+        .padding(AppSpacing.lg)
+        .background(AppColors.backgroundSecondary)
+        .cornerRadius(AppCornerRadius.large)
+        .shadow(color: AppShadow.small.color, radius: AppShadow.small.radius, x: AppShadow.small.x, y: AppShadow.small.y)
     }
     
     // 주 범위 텍스트 (월~금)
@@ -298,14 +207,6 @@ struct MenuEditorView: View {
         let friday = weeklyDates.last ?? selectedWeekStart
         
         return "\(formatter.string(from: monday)) ~ \(formatter.string(from: friday))"
-    }
-    
-    // 선택된 날짜 한글 표시
-    private var selectedDateText: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ko_KR")
-        formatter.dateFormat = "M월 d일 (E)"
-        return formatter.string(from: selectedDate)
     }
     
     // 이전 주 선택
@@ -324,81 +225,82 @@ struct MenuEditorView: View {
         }
     }
     
-    // 월요일로 조정
-    private func adjustToNextMonday(_ date: Date) {
-        let calendar = Calendar.current
-        let weekday = calendar.component(.weekday, from: date)
-        
-        if weekday == 1 { // 일요일
-            // 다음 월요일로
-            if let nextMonday = calendar.date(byAdding: .day, value: 1, to: date) {
-                selectedDate = nextMonday
-            }
-        } else if weekday == 7 { // 토요일
-            // 다음 월요일로
-            if let nextMonday = calendar.date(byAdding: .day, value: 2, to: date) {
-                selectedDate = nextMonday
-            }
-        }
-    }
-    
     // MARK: - OCR Buttons View
     private var ocrButtonsView: some View {
-        VStack(spacing: 16) {
-            Text("메뉴 인식")
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                .foregroundColor(AppColors.textPrimary)
+        VStack(spacing: AppSpacing.lg) {
+            HStack(spacing: AppSpacing.sm) {
+                Image(systemName: "camera.viewfinder")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(AppColors.primary)
+                
+                Text("AI 메뉴 인식")
+                    .font(AppTypography.title3)
+                    .foregroundColor(AppColors.textPrimary)
+            }
             
-            HStack(spacing: 16) {
+            Text("주간 식단표 사진을 촬영하거나 선택하면\nAI가 자동으로 메뉴를 인식합니다")
+                .font(AppTypography.subheadline)
+                .foregroundColor(AppColors.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, AppSpacing.lg)
+            
+            HStack(spacing: AppSpacing.lg) {
                 // 카메라 버튼
                 Button(action: { checkCameraPermission() }) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: AppSpacing.sm) {
                         Image(systemName: "camera.fill")
                             .font(.system(size: 18, weight: .medium))
                         Text("카메라")
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                            .font(AppTypography.headline)
                     }
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(height: 52)
                     .background(AppColors.primary)
-                    .cornerRadius(12)
+                    .cornerRadius(AppCornerRadius.medium)
+                    .shadow(color: AppShadow.small.color, radius: AppShadow.small.radius, x: AppShadow.small.x, y: AppShadow.small.y)
                 }
                 
                 // 앨범 버튼
                 Button(action: { checkPhotoLibraryPermission() }) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: AppSpacing.sm) {
                         Image(systemName: "photo.fill")
                             .font(.system(size: 18, weight: .medium))
                         Text("앨범")
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                            .font(AppTypography.headline)
                     }
                     .foregroundColor(AppColors.primary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(height: 52)
                     .background(Color.white)
-                    .cornerRadius(12)
+                    .cornerRadius(AppCornerRadius.medium)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(AppColors.primary, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: AppCornerRadius.medium)
+                            .stroke(AppColors.primary, lineWidth: 1.5)
                     )
+                    .shadow(color: AppShadow.small.color, radius: AppShadow.small.radius, x: AppShadow.small.x, y: AppShadow.small.y)
                 }
             }
             
             if isProcessingImage {
-                HStack(spacing: 8) {
+                HStack(spacing: AppSpacing.sm) {
                     ProgressView()
                         .scaleEffect(0.8)
-                    Text("이미지 처리 중...")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .tint(AppColors.primary)
+                    
+                    Text("AI가 메뉴를 분석하고 있습니다...")
+                        .font(AppTypography.subheadline)
                         .foregroundColor(AppColors.textSecondary)
                 }
-                .padding(.top, 8)
+                .padding(AppSpacing.md)
+                .background(AppColors.primary.opacity(0.1))
+                .cornerRadius(AppCornerRadius.medium)
             }
         }
-        .padding(20)
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(16)
+        .padding(AppSpacing.lg)
+        .background(AppColors.backgroundSecondary)
+        .cornerRadius(AppCornerRadius.large)
+        .shadow(color: AppShadow.small.color, radius: AppShadow.small.radius, x: AppShadow.small.x, y: AppShadow.small.y)
         .onAppear {
             permissionChecker.checkCameraPermission()
             permissionChecker.checkPhotoLibraryPermission()
@@ -415,62 +317,93 @@ struct MenuEditorView: View {
         }
     }
     
-    // MARK: - Single Menu Input Forms View
-    private var singleMenuInputFormsView: some View {
-        VStack(spacing: 20) {
-            // A Type Input
-            MenuTypeInputView(
-                title: "A타입",
-                items: $itemsA,
-                color: .blue
-            )
-            
-            // B Type Input
-            MenuTypeInputView(
-                title: "B타입",
-                items: $itemsB,
-                color: .green
-            )
-        }
-    }
-    
-    // MARK: - Weekly Menu Input Forms View
-    private var weeklyMenuInputFormsView: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                ForEach(0..<5, id: \.self) { index in
-                    VStack(spacing: 12) {
+    // MARK: - Weekly Menu Section
+    private var weeklyMenuSection: some View {
+        VStack(spacing: AppSpacing.lg) {
+            // 주간 메뉴 입력 폼
+            ForEach(0..<5, id: \.self) { dayIndex in
+                VStack(alignment: .leading, spacing: AppSpacing.md) {
+                    Text("\(weeklyDates[dayIndex].formatted(date: .abbreviated, time: .omitted))")
+                        .font(AppTypography.title3)
+                        .foregroundColor(AppColors.textPrimary)
+                    
+                    // A타입 메뉴
+                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
                         HStack {
-                            Text("\(index + 1)일차")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.primary)
+                            Text("A타입")
+                                .font(AppTypography.headline)
+                                .foregroundColor(AppColors.textSecondary)
                             
                             Spacer()
                             
-                            Text(weeklyDates[index], style: .date)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                            Button(action: {
+                                weeklyItemsA[dayIndex].append("")
+                            }) {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundColor(AppColors.primary)
+                                    .font(.system(size: 20))
+                            }
                         }
                         
-                        // A Type Input
-                        MenuTypeInputView(
-                            title: "A타입",
-                            items: $weeklyItemsA[index],
-                            color: .blue
-                        )
-                        
-                        // B Type Input
-                        MenuTypeInputView(
-                            title: "B타입",
-                            items: $weeklyItemsB[index],
-                            color: .green
-                        )
+                        VStack(spacing: AppSpacing.xs) {
+                            ForEach(weeklyItemsA[dayIndex].indices, id: \.self) { itemIndex in
+                                HStack {
+                                    TextField("메뉴를 입력하세요", text: $weeklyItemsA[dayIndex][itemIndex])
+                                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    
+                                    Button(action: {
+                                        weeklyItemsA[dayIndex].remove(at: itemIndex)
+                                    }) {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundColor(AppColors.error)
+                                            .font(.system(size: 18))
+                                    }
+                                    .disabled(weeklyItemsA[dayIndex].count <= 1)
+                                }
+                            }
+                        }
                     }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
+                    
+                    // B타입 메뉴
+                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                        HStack {
+                            Text("B타입")
+                                .font(AppTypography.headline)
+                                .foregroundColor(AppColors.textSecondary)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                weeklyItemsB[dayIndex].append("")
+                            }) {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundColor(AppColors.primary)
+                                    .font(.system(size: 20))
+                            }
+                        }
+                        
+                        VStack(spacing: AppSpacing.xs) {
+                            ForEach(weeklyItemsB[dayIndex].indices, id: \.self) { itemIndex in
+                                HStack {
+                                    TextField("메뉴를 입력하세요", text: $weeklyItemsB[dayIndex][itemIndex])
+                                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    
+                                    Button(action: {
+                                        weeklyItemsB[dayIndex].remove(at: itemIndex)
+                                    }) {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundColor(AppColors.error)
+                                            .font(.system(size: 18))
+                                    }
+                                    .disabled(weeklyItemsB[dayIndex].count <= 1)
+                                }
+                            }
+                        }
+                    }
                 }
+                .padding(AppSpacing.lg)
+                .background(AppColors.backgroundSecondary)
+                .cornerRadius(AppCornerRadius.medium)
             }
         }
     }
@@ -508,216 +441,168 @@ struct MenuEditorView: View {
     
     // MARK: - Menu Validation
     private var hasValidMenuData: Bool {
-        if isWeeklyMode {
-            // 주간 모드: 최소 하나의 메뉴라도 입력되어야 함
-            return weeklyItemsA.enumerated().contains { index, items in
-                !items.isEmpty || !weeklyItemsB[index].isEmpty
-            }
-        } else {
-            // 단일 모드: A타입 또는 B타입 중 하나라도 입력되어야 함
-            return !itemsA.isEmpty || !itemsB.isEmpty
+        // 주간 모드: 최소 하나의 메뉴라도 입력되어야 함
+        return weeklyItemsA.enumerated().contains { index, items in
+            !items.isEmpty || !weeklyItemsB[index].isEmpty
         }
     }
     
-    // MARK: - Save Menu
+    // MARK: - Save Menu Function
     private func saveMenu() {
-        guard hasValidMenuData else {
-            alertMessage = "메뉴를 하나 이상 입력해주세요."
-            showingAlert = true
-            return
-        }
+        print("💾 메뉴 저장 시작")
         
-        isSaving = true
-        
-        Task {
-            do {
-                if isWeeklyMode {
-                    try await saveWeeklyMenu()
-                } else {
-                    try await saveSingleMenu()
-                }
-            } catch {
-                await MainActor.run {
-                    print("❌ 메뉴 저장 실패: \(error)")
-                    isSaving = false
-                    alertMessage = "메뉴 저장에 실패했습니다: \(error.localizedDescription)"
-                    showingAlert = true
-                }
-            }
-        }
-    }
-    
-    // MARK: - Save Single Menu
-    private func saveSingleMenu() async throws {
-        let menuInput = MenuInput(
-            date: selectedDate,  // 선택된 날짜 사용
-            campus: menuViewModel.selectedCampus,
-            itemsA: itemsA,
-            itemsB: itemsB
-        )
-        
-        let updatedBy = authViewModel.currentUser?.email ?? "unknown"
-        
-        print("💾 단일 메뉴 저장 시작")
-        print("📅 선택된 날짜: \(selectedDate)")
-        print("🏫 캠퍼스: \(menuViewModel.selectedCampus.displayName)")
-        print("🍽️ A타입: \(itemsA)")
-        print("🍽️ B타입: \(itemsB)")
-        print("👤 수정자: \(updatedBy)")
-        
-        try await menuViewModel.supabaseService.saveMenu(menuInput: menuInput, updatedBy: updatedBy)
-        
-        await MainActor.run {
-            print("✅ 단일 메뉴 저장 성공")
-            isSaving = false
-            
-            // 성공 메시지 표시 후 화면 닫기
-            alertMessage = "메뉴가 성공적으로 저장되었습니다!"
-            showingAlert = true
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                dismiss()
-            }
-        }
+        saveWeeklyMenu()
     }
     
     // MARK: - Save Weekly Menu
-    private func saveWeeklyMenu() async throws {
-        let dailyMenus = weeklyDates.enumerated().map { index, date in
-            DailyMenu(
-                date: date,
-                itemsA: weeklyItemsA[index],
-                itemsB: weeklyItemsB[index]
-            )
-        }
-        
-        let weeklyInput = WeeklyMenuInput(
-            startDate: weeklyDates.first ?? selectedWeekStart,
-            campus: menuViewModel.selectedCampus,
-            weeklyMenus: dailyMenus
-        )
-        
-        let updatedBy = authViewModel.currentUser?.email ?? "unknown"
-        
+    private func saveWeeklyMenu() {
         print("💾 주간 메뉴 저장 시작")
-        print("📅 선택된 주: \(weekRangeText)")
-        print("🏫 캠퍼스: \(weeklyInput.campus.displayName)")
-        print("🍽️ 총 메뉴 수: \(dailyMenus.count)일")
-        print("👤 수정자: \(updatedBy)")
+        print("📅 주 시작일: \(selectedWeekStart)")
+        print("🏫 캠퍼스: \(Campus.default.displayName)")
         
-        try await menuViewModel.supabaseService.saveWeeklyMenu(weeklyInput: weeklyInput, updatedBy: updatedBy)
-        
-        await MainActor.run {
-            print("✅ 주간 메뉴 저장 성공")
-            isSaving = false
-            
-            // 성공 메시지 표시 후 화면 닫기
-            alertMessage = "주간 메뉴가 성공적으로 저장되었습니다!"
-            showingAlert = true
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                dismiss()
+        // 각 날짜별로 메뉴 저장
+        Task {
+            do {
+                for (index, date) in weeklyDates.enumerated() {
+                    let itemsA = weeklyItemsA[index]
+                    let itemsB = weeklyItemsB[index]
+                    
+                    // 빈 메뉴는 건너뛰기
+                    guard !itemsA.isEmpty || !itemsB.isEmpty else {
+                        print("⚠️ \(date.formatted(date: .abbreviated, time: .omitted)) 메뉴가 비어있음")
+                        continue
+                    }
+                    
+                    print("📅 \(date.formatted(date: .abbreviated, time: .omitted)) 메뉴 저장")
+                    print("🍽️ A타입: \(itemsA)")
+                    print("🍽️ B타입: \(itemsB)")
+                    
+                    // SupabaseService를 통해 저장
+                    try await menuViewModel.supabaseService.saveMenu(
+                        menuInput: MenuInput(
+                            date: date,
+                            campus: Campus.default,
+                            itemsA: itemsA,
+                            itemsB: itemsB
+                        ),
+                        updatedBy: authViewModel.currentUser?.email
+                    )
+                    
+                    print("✅ \(date.formatted(date: .abbreviated, time: .omitted)) 메뉴 저장 완료")
+                }
+                
+                // 모든 저장 완료 후 화면 닫기
+                await MainActor.run {
+                    print("✅ 주간 메뉴 저장 완료")
+                    dismiss()
+                }
+            } catch {
+                print("❌ 주간 메뉴 저장 실패: \(error)")
+                // TODO: 에러 처리
             }
         }
     }
     
     // MARK: - Helper Methods
     private func loadExistingMenu() {
-        if isWeeklyMode {
-            // 주간 모드에서는 기존 메뉴를 각 일자별로 로드
-            loadWeeklyExistingMenus()
-        } else {
-            // 단일 모드에서는 현재 날짜의 메뉴만 로드
-            loadSingleExistingMenu()
-        }
+        // 주간 모드에서는 기존 메뉴를 각 일자별로 로드
+        loadWeeklyExistingMenus()
     }
     
-    private func loadSingleExistingMenu() {
-        if let menu = menuViewModel.currentMenu {
-            itemsA = menu.itemsA
-            itemsB = menu.itemsB
-            print("📋 단일 메뉴 로드됨 - A타입: \(itemsA.count)개, B타입: \(itemsB.count)개")
-        } else {
-            print("📋 해당 날짜에 기존 메뉴 없음")
-            // 기존 메뉴가 없으면 빈 배열로 초기화
-            itemsA = []
-            itemsB = []
-        }
-    }
-    
+    // 주간 메뉴 로드
     private func loadWeeklyExistingMenus() {
         print("📋 주간 메뉴 로드 시작")
+        print("📅 주 시작일: \(selectedWeekStart)")
+        print("🏫 캠퍼스: \(Campus.default.displayName)")
         
-        // 각 일자별로 기존 메뉴 로드
+        // 각 날짜별로 기존 메뉴 로드 또는 기본값 설정
         for (index, weekDate) in weeklyDates.enumerated() {
-            Task {
-                do {
-                    print("📋 \(index + 1)일차 메뉴 로드 중: \(weekDate)")
-                    if let menu = try await menuViewModel.supabaseService.fetchMenu(date: weekDate, campus: menuViewModel.selectedCampus) {
-                        await MainActor.run {
-                            weeklyItemsA[index] = menu.itemsA
-                            weeklyItemsB[index] = menu.itemsB
-                            print("✅ \(index + 1)일차 메뉴 로드 완료 - A타입: \(menu.itemsA.count)개, B타입: \(menu.itemsB.count)개")
-                        }
-                    } else {
-                        await MainActor.run {
-                            // 기존 메뉴가 없으면 빈 배열로 초기화
-                            weeklyItemsA[index] = []
-                            weeklyItemsB[index] = []
-                            print("📭 \(index + 1)일차 기존 메뉴 없음")
-                        }
-                    }
-                } catch {
-                    await MainActor.run {
-                        print("❌ \(index + 1)일차 메뉴 로드 실패: \(error)")
-                        // 에러 발생 시 빈 배열로 초기화
-                        weeklyItemsA[index] = []
-                        weeklyItemsB[index] = []
-                    }
-                }
+            print("📋 \(index + 1)일차 메뉴 로드 중: \(weekDate)")
+            
+            // 기존 메뉴가 있으면 유지, 없으면 기본값 설정
+            if weeklyItemsA[index].isEmpty {
+                weeklyItemsA[index] = [""]
             }
+            if weeklyItemsB[index].isEmpty {
+                weeklyItemsB[index] = [""]
+            }
+            
+            print("✅ \(index + 1)일차 메뉴 로드 완료 - A타입: \(weeklyItemsA[index].count)개, B타입: \(weeklyItemsB[index].count)개")
         }
+        
+        print("✅ 주간 메뉴 로드 완료")
     }
     
-    // MARK: - Image Processing
+    // MARK: - 이미지 처리
     private func processImage(_ image: UIImage) {
         isProcessingImage = true
+        selectedImage = nil
         
         Task {
             do {
-                let extractedText = try await ocrService.extractTextFromImage(image)
-                print("🔍 OCR 결과: \(extractedText)")
+                print("🔍 ChatGPT API로 메뉴 이미지 분석 시작")
+                let extractedMenus = try await geminiService.analyzeMenuImage(image)
                 
                 await MainActor.run {
-                    // OCR 결과를 메뉴 입력 필드에 자동으로 채우기
-                    if isWeeklyMode {
-                        // 주간 모드: 첫 번째 날짜에만 적용
-                        let lines = extractedText.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-                        weeklyItemsA[0] = lines
-                    } else {
-                        // 단일 모드: A타입에 적용
-                        let lines = extractedText.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-                        itemsA = lines
-                    }
-                    
+                    // 추출된 데이터로 입력 필드 채우기
+                    applyExtractedMenuData(extractedMenus)
                     isProcessingImage = false
-                    selectedImage = nil
-                    
-                    // 성공 메시지 표시
-                    alertMessage = "메뉴 인식이 완료되었습니다!"
-                    showingAlert = true
+                    print("✅ 메뉴 데이터 추출 완료")
                 }
             } catch {
                 await MainActor.run {
                     isProcessingImage = false
-                    selectedImage = nil
+                    print("❌ 메뉴 데이터 추출 실패: \(error)")
                     
-                    // 에러 메시지 표시
-                    alertMessage = "메뉴 인식에 실패했습니다: \(error.localizedDescription)"
+                    // 사용자 친화적인 에러 메시지 표시
+                    if let chatGPTError = error as? ChatGPTError {
+                        switch chatGPTError {
+                        case .apiRequestFailed:
+                            alertMessage = "ChatGPT API 서비스가 일시적으로 사용할 수 없습니다.\n\n무료 사용량 제한에 도달했거나 서버가 혼잡합니다.\n\n잠시 후 다시 시도하거나, 수동으로 메뉴를 입력해주세요."
+                        case .imageConversionFailed:
+                            alertMessage = "이미지 변환에 실패했습니다.\n\n다른 이미지를 선택하거나 다시 촬영해주세요."
+                        case .noContentReceived:
+                            alertMessage = "이미지에서 메뉴 정보를 추출할 수 없습니다.\n\n더 선명한 이미지나 다른 각도에서 촬영해주세요."
+                        case .parsingFailed:
+                            alertMessage = "AI가 추출한 메뉴 정보를 처리할 수 없습니다.\n\n수동으로 메뉴를 입력해주세요."
+                        }
+                    } else {
+                        alertMessage = "메뉴 데이터 추출에 실패했습니다.\n\n\(error.localizedDescription)"
+                    }
+                    
                     showingAlert = true
                 }
             }
         }
+    }
+    
+    // MARK: - 추출된 메뉴 데이터 적용
+    private func applyExtractedMenuData(_ extractedMenus: [Menu]) {
+        guard !extractedMenus.isEmpty else { return }
+        
+        // 첫 번째 메뉴의 날짜를 기준으로 주 시작일 설정
+        let firstMenu = extractedMenus[0]
+        let calendar = Calendar.current
+        
+        // 해당 날짜가 포함된 주의 월요일 찾기
+        let weekday = calendar.component(.weekday, from: firstMenu.date)
+        let daysFromMonday = weekday == 1 ? 6 : weekday - 2 // 일요일이면 6일 전, 월요일이면 0일 전
+        
+        if let monday = calendar.date(byAdding: .day, value: -daysFromMonday, to: firstMenu.date) {
+            selectedWeekStart = monday
+        }
+        
+        // 각 메뉴를 해당하는 주간 배열에 적용
+        for (index, menu) in extractedMenus.enumerated() {
+            if index < weeklyItemsA.count && index < weeklyItemsB.count {
+                weeklyItemsA[index] = menu.itemsA
+                weeklyItemsB[index] = menu.itemsB
+            }
+        }
+        
+        print("📋 추출된 메뉴 데이터 적용 완료")
+        print("📅 주 시작일: \(selectedWeekStart)")
+        print("🍽️ 메뉴 개수: \(extractedMenus.count)일")
     }
     
     // MARK: - Guest Read Only View
@@ -771,6 +656,12 @@ struct MenuEditorView: View {
                 permissionAlertMessage = "앨범 접근 권한이 필요합니다. 설정에서 허용해주세요."
             }
         }
+    }
+    
+    // 기본 메뉴 항목 초기화
+    private func initializeMenuItems() {
+        // 주간 모드에서는 기존 메뉴가 있으면 로드하고, 없으면 빈 배열로 초기화
+        loadWeeklyExistingMenus()
     }
 }
 

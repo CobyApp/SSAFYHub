@@ -3,7 +3,7 @@ import SwiftUI
 struct CampusSelectionView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var appCoordinator: AppCoordinator
-    @State private var selectedCampus: Campus = .seoul
+    @State private var selectedCampus: Campus = .daejeon  // 기본값을 대전으로 변경
     
     var body: some View {
         VStack(spacing: 24) {
@@ -17,7 +17,7 @@ struct CampusSelectionView: View {
                     .font(.title2)
                     .fontWeight(.semibold)
                 
-                Text("선택한 캠퍼스의 점심 메뉴를 확인할 수 있습니다")
+                Text("현재 대전캠퍼스만 지원됩니다")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -29,9 +29,12 @@ struct CampusSelectionView: View {
                 ForEach(Campus.allCases, id: \.self) { campus in
                     CampusOptionRow(
                         campus: campus,
-                        isSelected: selectedCampus == campus
+                        isSelected: selectedCampus == campus,
+                        isAvailable: campus.isAvailable
                     ) {
-                        selectedCampus = campus
+                        if campus.isAvailable {
+                            selectedCampus = campus
+                        }
                     }
                 }
             }
@@ -83,6 +86,7 @@ struct CampusSelectionView: View {
 struct CampusOptionRow: View {
     let campus: Campus
     let isSelected: Bool
+    let isAvailable: Bool
     let onTap: () -> Void
     
     var body: some View {
@@ -91,26 +95,44 @@ struct CampusOptionRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(campus.displayName)
                         .font(.headline)
-                        .foregroundColor(isSelected ? .white : .primary)
+                        .foregroundColor(isSelected ? .white : (isAvailable ? .primary : .secondary))
                     
-                    Text(campus.description)
-                        .font(.caption)
-                        .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
+                    if isAvailable {
+                        Text(campus.description)
+                            .font(.caption)
+                            .foregroundColor(isSelected ? .white.opacity(0.8) : .secondary)
+                    } else {
+                        Text("준비중 (추후 확정 예정)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 
                 Spacer()
                 
-                if isSelected {
+                if isSelected && isAvailable {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.white)
                         .font(.title2)
+                } else if !isAvailable {
+                    Text("준비중")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(.systemGray5))
+                        .cornerRadius(8)
                 }
             }
             .padding()
-            .background(isSelected ? Color.blue : Color(.systemGray6))
-            .cornerRadius(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? Color.blue : (isAvailable ? Color(.systemGray6) : Color(.systemGray5)))
+            )
+            .opacity(isAvailable ? 1.0 : 0.6)
         }
         .buttonStyle(PlainButtonStyle())
+        .disabled(!isAvailable)  // 사용 불가능한 캠퍼스는 버튼 비활성화
     }
 }
 

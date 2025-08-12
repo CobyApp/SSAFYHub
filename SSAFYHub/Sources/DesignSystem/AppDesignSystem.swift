@@ -13,14 +13,15 @@ struct AppColors {
     static let primaryDark = ssafyBlueDark
     
     // 보조 컬러
-    static let secondary = Color(red: 0.95, green: 0.95, blue: 0.97)  // #F2F2F7
-    static let secondaryDark = Color(red: 0.15, green: 0.15, blue: 0.17)  // #262628
+    static let secondary = Color(.systemGray6)
+    static let secondaryDark = Color(.systemGray5)
     
-    // 배경 컬러
-    static let background = Color(.systemBackground)
+    // 배경 컬러 - 다크모드 자동 지원
+    static let backgroundPrimary = Color(.systemBackground)
     static let backgroundSecondary = Color(.secondarySystemBackground)
+    static let backgroundTertiary = Color(.tertiarySystemBackground)
     
-    // 텍스트 컬러
+    // 텍스트 컬러 - 다크모드 자동 지원
     static let textPrimary = Color(.label)
     static let textSecondary = Color(.secondaryLabel)
     static let textTertiary = Color(.tertiaryLabel)
@@ -29,6 +30,8 @@ struct AppColors {
     static let success = Color(red: 0.2, green: 0.8, blue: 0.4)  // #33CC66
     static let warning = Color(red: 1.0, green: 0.6, blue: 0.0)  // #FF9900
     static let error = Color(red: 1.0, green: 0.3, blue: 0.3)   // #FF4D4D
+    static let disabled = Color(.systemGray3)
+    static let border = Color(.separator)
     
     // 그라데이션
     static let primaryGradient = LinearGradient(
@@ -38,7 +41,7 @@ struct AppColors {
     )
     
     static let backgroundGradient = LinearGradient(
-        colors: [background, secondary],
+        colors: [backgroundPrimary, backgroundSecondary],
         startPoint: .top,
         endPoint: .bottom
     )
@@ -195,19 +198,60 @@ class ThemeManager: ObservableObject {
     @Published var isDarkMode: Bool = false
     
     init() {
-        // 시스템 설정에 따라 초기 테마 설정
+        // UserDefaults에서 저장된 테마 설정 불러오기
+        if let savedTheme = UserDefaults.standard.object(forKey: "app.theme") as? String {
+            isDarkMode = savedTheme == "dark"
+        } else {
+            // 저장된 설정이 없으면 시스템 설정에 따라 초기 테마 설정
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                isDarkMode = windowScene.traitCollection.userInterfaceStyle == .dark
+            }
+        }
+        
+        // 앱 시작 시 저장된 테마 설정을 시스템에 즉시 적용
+        DispatchQueue.main.async {
+            self.applyThemeToSystem()
+        }
+    }
+    
+    // 시스템에 테마 설정 적용
+    private func applyThemeToSystem() {
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-            isDarkMode = windowScene.traitCollection.userInterfaceStyle == .dark
+            windowScene.windows.forEach { window in
+                window.overrideUserInterfaceStyle = isDarkMode ? .dark : .light
+            }
         }
     }
     
     func toggleTheme() {
         isDarkMode.toggle()
+        // UserDefaults에 테마 설정 저장
+        UserDefaults.standard.set(isDarkMode ? "dark" : "light", forKey: "app.theme")
+        
+        // 시스템 테마와 동기화 (선택사항)
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            windowScene.windows.forEach { window in
+                window.overrideUserInterfaceStyle = isDarkMode ? .dark : .light
+            }
+        }
+    }
+    
+    func setTheme(_ isDark: Bool) {
+        isDarkMode = isDark
+        // UserDefaults에 테마 설정 저장
+        UserDefaults.standard.set(isDark ? "dark" : "light", forKey: "app.theme")
+        
+        // 시스템 테마와 동기화
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            windowScene.windows.forEach { window in
+                window.overrideUserInterfaceStyle = isDark ? .dark : .light
+            }
+        }
     }
     
     // 현재 테마에 따른 색상 반환
     var currentBackground: Color {
-        isDarkMode ? AppColors.background : AppColors.background
+        isDarkMode ? AppColors.backgroundPrimary : AppColors.backgroundPrimary
     }
     
     var currentBackgroundSecondary: Color {

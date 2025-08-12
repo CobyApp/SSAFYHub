@@ -9,8 +9,19 @@ class SupabaseService: ObservableObject {
     let client: SupabaseClient
     
     private init() {
-        let supabaseURL = "https://gijhwyoagvkmijxzpelr.supabase.co"
-        let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdpamh3eW9hZ3ZrbWlqeHpwZWxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ5NzU3MzEsImV4cCI6MjA3MDU1MTczMX0.ggxD_gO-RrC_lIEkvhprTKjFHCcDmHfrOk8mz8rxDFA"
+        // APIKeyManager에서 Supabase 설정 가져오기
+        let apiKeyManager = APIKeyManager.shared
+        
+        // 기본 키 설정 (첫 실행 시)
+        apiKeyManager.setupDefaultKeys()
+        
+        let supabaseURL = apiKeyManager.supabaseURL
+        let supabaseAnonKey = apiKeyManager.supabaseAnonKey
+        
+        // 설정 유효성 검사
+        guard apiKeyManager.isSupabaseConfigured else {
+            fatalError("❌ SupabaseService: Supabase 설정이 유효하지 않습니다. APIKeyManager를 확인해주세요.")
+        }
         
         // Supabase 2.0.0+ 버전에서는 기본적으로 세션 지속 저장이 활성화됨
         self.client = SupabaseClient(
@@ -19,6 +30,11 @@ class SupabaseService: ObservableObject {
         )
         
         print("🔧 SupabaseService: 클라이언트 초기화 완료 - 세션 지속 저장 기본 활성화")
+        print("🔧 SupabaseService: URL: \(supabaseURL)")
+        print("🔧 SupabaseService: Anon Key: \(supabaseAnonKey.prefix(20))...")
+        
+        // API Key Manager 설정 정보 출력
+        apiKeyManager.printConfiguration()
     }
     
     // MARK: - Apple Sign In
@@ -36,7 +52,6 @@ class SupabaseService: ObservableObject {
         let user = session.user
         let userId = user.id.uuidString
         let userEmail = user.email ?? "unknown@apple.com"
-        let userCampus: Campus = .seoul
         
         // 수동 세션 저장
         await saveSessionManually(session)
@@ -47,8 +62,13 @@ class SupabaseService: ObservableObject {
             // 기존 사용자 정보 업데이트 및 세션 저장
             await saveUserSession(existingUser)
             print("🍎 SupabaseService: 기존 사용자 Apple 로그인 성공 - \(existingUser.email)")
+            print("🏫 기존 사용자 캠퍼스: \(existingUser.campus.displayName)")
             return existingUser
         } else {
+            // 새 사용자는 기본적으로 대전캠퍼스로 설정
+            let userCampus: Campus = .daejeon
+            print("🏫 새 사용자 기본 캠퍼스 설정: \(userCampus.displayName)")
+            
             let newUser = User(
                 id: userId,
                 email: userEmail,
@@ -62,6 +82,7 @@ class SupabaseService: ObservableObject {
             // 새 사용자 세션 저장
             await saveUserSession(newUser)
             print("🍎 SupabaseService: 새 사용자 Apple 로그인 성공 - \(newUser.email)")
+            print("🏫 새 사용자 캠퍼스: \(newUser.campus.displayName)")
             return newUser
         }
     }
@@ -128,7 +149,7 @@ class SupabaseService: ObservableObject {
     func refreshSessionIfNeeded() async throws {
         do {
             let session = try await client.auth.session
-            print("🔍 SupabaseService: 세션 상태 확인 - 사용자: \(session.user.email ?? "unknown")")
+            print("�� SupabaseService: 세션 상태 확인 - 사용자: \(session.user.email ?? "unknown")")
             
             // 세션 만료 시간 확인 (accessToken의 만료 시간 사용)
             let accessToken = session.accessToken
@@ -403,11 +424,15 @@ class SupabaseService: ObservableObject {
     func signInAsGuest(campus: Campus) async throws -> User {
         print("👤 SupabaseService: 게스트 로그인 시작 - 캠퍼스: \(campus.displayName)")
         
+        // 게스트 사용자는 항상 대전캠퍼스로 강제 설정
+        let forcedCampus: Campus = .daejeon
+        print("⚠️ 게스트 사용자 캠퍼스를 대전으로 강제 설정: \(forcedCampus.displayName)")
+        
         // 게스트 사용자 생성 (userType을 .guest로 명시)
         let guestUser = User(
             id: UUID().uuidString,
             email: "guest@ssafyhub.com",
-            campus: campus,
+            campus: forcedCampus,  // 대전캠퍼스로 강제 설정
             userType: .guest,  // 게스트 타입으로 명시
             createdAt: Date(),
             updatedAt: Date()
@@ -516,6 +541,88 @@ class SupabaseService: ObservableObject {
         } catch {
             print("❌ SupabaseService: 수동 세션 복구 실패: \(error)")
             return nil
+        }
+    }
+    
+    // MARK: - Account Management
+    func deleteAccount() async throws {
+        print("🗑️ SupabaseService: 회원탈퇴 시작")
+        
+        // 현재 사용자 정보 가져오기
+        guard let currentUser = try? await client.auth.session.user else {
+            print("❌ SupabaseService: 현재 사용자 정보를 찾을 수 없음")
+            throw NSError(domain: "SupabaseService", code: 1001, userInfo: [NSLocalizedDescriptionKey: "사용자 정보를 찾을 수 없습니다"])
+        }
+        
+        let userId = currentUser.id.uuidString
+        print("👤 삭제할 사용자 ID: \(userId)")
+        
+        do {
+            // 1. 사용자가 작성한 메뉴 데이터 삭제
+            print("🍽️ 사용자 메뉴 데이터 삭제 시작")
+            try await client.database
+                .from("menus")
+                .delete()
+                .eq("updated_by", value: currentUser.email ?? "unknown")
+                .execute()
+            print("✅ 사용자 메뉴 데이터 삭제 완료")
+            
+            // 2. 사용자 프로필 데이터 삭제
+            print("👤 사용자 프로필 데이터 삭제 시작")
+            try await client.database
+                .from("users")
+                .delete()
+                .eq("id", value: userId)
+                .execute()
+            print("✅ 사용자 프로필 데이터 삭제 완료")
+            
+            // 3. 로컬 세션 및 데이터 정리
+            print("🧹 로컬 데이터 정리 시작")
+            
+            // UserDefaults 정리
+            UserDefaults.standard.removeObject(forKey: "manual.supabase.session")
+            UserDefaults.standard.removeObject(forKey: "user.campus")
+            UserDefaults.standard.removeObject(forKey: "user.preferences")
+            
+            // 키체인 정리
+            let keychain = Keychain(service: "com.coby.ssafyhub.session")
+            try? keychain.remove("manual.session")
+            
+            print("✅ 로컬 데이터 정리 완료")
+            
+            // 4. Supabase 인증 세션 정리 (로그아웃)
+            print("🔐 Supabase 세션 정리 시작")
+            try await client.auth.signOut()
+            print("✅ Supabase 세션 정리 완료")
+            
+            print("✅ SupabaseService: 회원탈퇴 완료")
+            
+        } catch {
+            print("❌ SupabaseService: 회원탈퇴 중 오류 발생: \(error)")
+            
+            // 부분적으로 삭제된 경우에도 로그아웃은 시도
+            do {
+                try await client.auth.signOut()
+                print("⚠️ 부분 삭제 후 로그아웃 완료")
+            } catch {
+                print("❌ 로그아웃도 실패: \(error)")
+            }
+            
+            // 구체적인 에러 메시지 제공
+            let errorMessage: String
+            if error.localizedDescription.contains("permission") {
+                errorMessage = "권한이 부족하여 회원탈퇴를 완료할 수 없습니다. 관리자에게 문의하세요."
+            } else if error.localizedDescription.contains("network") {
+                errorMessage = "네트워크 오류로 회원탈퇴를 완료할 수 없습니다. 다시 시도해주세요."
+            } else {
+                errorMessage = "회원탈퇴 중 오류가 발생했습니다: \(error.localizedDescription)"
+            }
+            
+            throw NSError(
+                domain: "SupabaseService", 
+                code: 1002, 
+                userInfo: [NSLocalizedDescriptionKey: errorMessage]
+            )
         }
     }
 }

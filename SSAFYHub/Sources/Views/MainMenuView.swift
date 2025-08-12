@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MainMenuView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
+    @EnvironmentObject var appCoordinator: AppCoordinator
     @StateObject var menuViewModel = MenuViewModel()
     @State private var showMenuEditor = false
     @State private var showSettings = false
@@ -17,25 +18,42 @@ struct MainMenuView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // 헤더
-                headerView
-                
-                // 메뉴 컨텐츠
-                if let menu = menuViewModel.currentMenu {
-                    menuContentView(menu)
-                } else {
-                    emptyMenuView
+            ScrollView {
+                VStack(spacing: 0) {
+                    // 헤더
+                    headerView
+                    
+                    // 메뉴 컨텐츠
+                    if let menu = menuViewModel.currentMenu {
+                        menuContentView(menu)
+                    } else {
+                        emptyMenuView
+                    }
+                    
+                    Spacer(minLength: 20)
                 }
-                
-                Spacer()
+                .background(Color(.systemBackground))
             }
-            .background(Color(.systemBackground))
+            .refreshable {
+                // 당기면 새로고침
+                print("🔄 메뉴 새로고침 시작")
+                await refreshMenu()
+            }
             .navigationBarHidden(true)
         }
         .onAppear {
             if let currentUser = authViewModel.currentUser {
-                menuViewModel.selectedCampus = currentUser.campus
+                // 사용자의 캠퍼스 정보가 있으면 사용, 없으면 대전으로 설정
+                let userCampus = currentUser.campus
+                if userCampus.isAvailable {
+                    menuViewModel.selectedCampus = userCampus
+                } else {
+                    menuViewModel.selectedCampus = .daejeon
+                }
+                menuViewModel.loadMenuForCurrentDate()
+            } else {
+                // 게스트 사용자일 경우 대전으로 설정
+                menuViewModel.selectedCampus = .daejeon
                 menuViewModel.loadMenuForCurrentDate()
             }
         }
@@ -50,6 +68,8 @@ struct MainMenuView: View {
         }
         .fullScreenCover(isPresented: $showSettings) {
             SettingsView()
+                .environmentObject(authViewModel)
+                .environmentObject(appCoordinator)
         }
         .alert("게스트 모드 제한", isPresented: $showGuestAccessAlert) {
             Button("확인") { }
@@ -58,9 +78,40 @@ struct MainMenuView: View {
         }
     }
     
+    // MARK: - 새로고침 함수
+    private func refreshMenu() async {
+        print("🔄 메뉴 새로고침 실행")
+        
+        // 현재 날짜의 메뉴 다시 로드
+        await MainActor.run {
+            menuViewModel.loadMenuForCurrentDate()
+        }
+        
+        // 잠시 대기 (로고침 애니메이션을 위해)
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5초
+        
+        print("✅ 메뉴 새로고침 완료")
+    }
+    
     // MARK: - Header View
     private var headerView: some View {
         VStack(spacing: 0) {
+            // 상단 설정 버튼
+            HStack {
+                Spacer()
+                
+                Button(action: { showSettings = true }) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(AppColors.textSecondary)
+                        .frame(width: 44, height: 44)
+                        .background(Color(.tertiarySystemBackground))
+                        .cornerRadius(22)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 10)
+            
             // 메인 헤더
             VStack(spacing: 20) {
                 HStack {
@@ -73,42 +124,15 @@ struct MainMenuView: View {
                             Text(currentUser.campus.displayName)
                                 .font(.system(size: 18, weight: .medium, design: .rounded))
                                 .foregroundColor(AppColors.textSecondary)
+                        } else {
+                            // 게스트 사용자일 경우 대전캠퍼스 표시
+                            Text("대전캠퍼스")
+                                .font(.system(size: 18, weight: .medium, design: .rounded))
+                                .foregroundColor(AppColors.textSecondary)
                         }
                     }
                     
                     Spacer()
-                    
-                    // 우측 상단 버튼들
-                    HStack(spacing: 16) {
-                        Button(action: { showSettings = true }) {
-                            Image(systemName: "gearshape.fill")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(AppColors.textSecondary)
-                                .frame(width: 44, height: 44)
-                                .background(Color(.tertiarySystemBackground))
-                                .cornerRadius(22)
-                        }
-                        
-                        if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
-                            Button(action: { showMenuEditor = true }) {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 24, weight: .medium))
-                                    .foregroundColor(AppColors.primary)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color(.tertiarySystemBackground))
-                                    .cornerRadius(22)
-                            }
-                        } else {
-                            Button(action: { showGuestAccessAlert = true }) {
-                                Image(systemName: "lock.circle.fill")
-                                    .font(.system(size: 24, weight: .medium))
-                                    .foregroundColor(AppColors.warning)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color(.tertiarySystemBackground))
-                                    .cornerRadius(22)
-                            }
-                        }
-                    }
                 }
                 
                 // 날짜 표시
@@ -147,8 +171,6 @@ struct MainMenuView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 24)
         }
     }
     
@@ -163,6 +185,34 @@ struct MainMenuView: View {
             // B타입 메뉴
             if !menu.itemsB.isEmpty {
                 menuSection(title: "B타입", items: menu.itemsB, color: AppColors.success)
+            }
+            
+            // 메뉴 수정 버튼 (인증된 사용자만)
+            if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
+                Button(action: { showMenuEditor = true }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(AppColors.primary)
+                        
+                        Text("메뉴 수정하기")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(AppColors.primary)
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(AppColors.primary)
+                    }
+                    .padding(20)
+                    .background(AppColors.primary.opacity(0.1))
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(AppColors.primary.opacity(0.3), lineWidth: 1)
+                    )
+                }
             }
         }
         .padding(.horizontal, 20)
@@ -221,10 +271,38 @@ struct MainMenuView: View {
                         .foregroundColor(AppColors.textPrimary)
                     
                     if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
-                        Text("+ 버튼을 눌러 메뉴를 등록해보세요")
+                        Text("아래 버튼을 눌러 메뉴를 등록해보세요")
+                            .font(.system(size: 14, weight: .regular, design: .rounded))
+                            .foregroundColor(AppColors.textSecondary)
+                    } else {
+                        Text("Apple ID로 로그인하여 메뉴를 등록할 수 있습니다")
                             .font(.system(size: 14, weight: .regular, design: .rounded))
                             .foregroundColor(AppColors.textSecondary)
                     }
+                }
+            }
+            
+            // 메뉴 추가 버튼 (인증된 사용자만)
+            if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
+                Button(action: { showMenuEditor = true }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(.white)
+                        
+                        Text("이번주 메뉴 추가하기")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white)
+                    }
+                    .padding(20)
+                    .background(AppColors.primary)
+                    .cornerRadius(16)
                 }
             }
             
