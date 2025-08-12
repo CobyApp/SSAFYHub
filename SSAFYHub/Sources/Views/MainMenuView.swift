@@ -99,6 +99,7 @@ struct MainMenuView: View {
                     menuViewModel: menuViewModel,
                     date: menuViewModel.currentDate
                 )
+                .environmentObject(authViewModel)
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
@@ -109,6 +110,9 @@ struct MainMenuView: View {
             if let currentUser = authViewModel.currentUser {
                 menuViewModel.selectedCampus = currentUser.campus
                 print("🏫 MainMenuView: 사용자 캠퍼스 \(currentUser.campus.displayName)로 초기화")
+                
+                // 캠퍼스 설정 후 메뉴 로드
+                menuViewModel.initializeWithCampus(currentUser.campus)
             }
         }
     }

@@ -140,25 +140,10 @@ struct AuthView: View {
     }
     
     private func performAppleSignIn(credential: ASAuthorizationAppleIDCredential) async {
-        do {
-            guard let identityTokenData = credential.identityToken,
-                  let identityToken = String(data: identityTokenData, encoding: .utf8) else {
-                await MainActor.run {
-                    authViewModel.errorMessage = "Apple ID 토큰을 가져올 수 없습니다."
-                }
-                return
-            }
-            
-            print("🍎 Apple 로그인 성공, Supabase 인증 시작")
-            
-            // Apple 로그인 성공 시 새로운 메서드 사용
-            await authViewModel.signInWithAppleAndNavigate()
-            
-        } catch {
-            await MainActor.run {
-                authViewModel.errorMessage = "Apple 로그인에 실패했습니다: \(error.localizedDescription)"
-            }
-        }
+        print("🍎 Apple 로그인 성공, Supabase 인증 시작")
+        
+        // Apple 로그인 성공 시 새로운 메서드 사용
+        await authViewModel.signInWithAppleAndNavigate()
     }
 }
 

@@ -61,9 +61,22 @@ struct SSAFYHubApp: App {
     private func checkInitialAuthState() {
         Task {
             do {
-                let session = try await authViewModel.supabaseService.client.auth.session
+                print("🔍 SSAFYHubApp: 세션 상태 확인 시작")
+                
+                // 세션 갱신 시도 (에러가 발생해도 계속 진행)
+                do {
+                    try await authViewModel.supabaseService.refreshSessionIfNeeded()
+                } catch {
+                    print("ℹ️ SSAFYHubApp: 세션 갱신 실패 (정상적인 상황): \(error)")
+                }
+                
+                // 세션 존재 여부 확인
+                let session = try await authViewModel.supabaseService.getCurrentSession()
                 let user = session.user
+                print("🔍 SSAFYHubApp: 세션 발견 - 사용자 ID: \(user.id)")
+                
                 let userData = try await authViewModel.fetchUserData(userId: user.id.uuidString)
+                print("🔍 SSAFYHubApp: 사용자 데이터 로드 완료 - \(userData.email)")
                 
                 await MainActor.run {
                     print("✅ 앱 시작 시 기존 로그인 발견: \(userData.email)")
@@ -81,6 +94,12 @@ struct SSAFYHubApp: App {
             } catch {
                 await MainActor.run {
                     print("❌ 앱 시작 시 로그인 상태 확인 실패: \(error)")
+                    
+                    // 세션 관련 에러인지 확인
+                    print("🔍 에러 타입: \(type(of: error))")
+                    print("🔍 에러 설명: \(error.localizedDescription)")
+                    
+                    // 세션이 만료되었거나 없는 경우 인증 화면으로
                     authViewModel.authState = .unauthenticated
                     appCoordinator.currentRoute = .auth
                 }

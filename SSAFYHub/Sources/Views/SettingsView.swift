@@ -100,9 +100,7 @@ struct SettingsView: View {
                     selectedCampus: $selectedCampus,
                     onCampusSelected: { campus in
                         Task {
-                            if let user = authViewModel.currentUser {
-                                await authViewModel.updateUserCampus(campus)
-                            }
+                            await authViewModel.updateUserCampus(campus)
                         }
                     }
                 )

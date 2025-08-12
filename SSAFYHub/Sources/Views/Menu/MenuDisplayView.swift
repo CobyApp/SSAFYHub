@@ -51,11 +51,24 @@ struct MenuTypeView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(color)
-                .padding(.horizontal)
+            HStack {
+                Text(title)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(color)
+                
+                Spacer()
+                
+                // 메뉴 개수 표시
+                Text("\(items.count)개")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Color(.systemGray5))
+                    .cornerRadius(8)
+            }
+            .padding(.horizontal)
             
             if items.isEmpty {
                 Text("메뉴 정보가 없습니다")
@@ -71,6 +84,7 @@ struct MenuTypeView: View {
                         HStack {
                             Text("•")
                                 .foregroundColor(color)
+                                .font(.title2)
                             Text(item)
                                 .font(.body)
                             Spacer()
@@ -89,19 +103,42 @@ struct MenuTypeView: View {
 // MARK: - Empty Menu View
 struct EmptyMenuView: View {
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 20) {
             Image(systemName: "fork.knife")
                 .font(.system(size: 48))
                 .foregroundColor(.secondary)
             
-            Text("오늘 메뉴가 등록되지 않았습니다")
-                .font(.headline)
-                .foregroundColor(.secondary)
+            VStack(spacing: 8) {
+                Text("오늘 메뉴가 등록되지 않았습니다")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                
+                Text("A타입과 B타입 메뉴를 등록해주세요")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
             
-            Text("아래 버튼을 눌러 메뉴를 등록해주세요")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+            HStack(spacing: 16) {
+                VStack(spacing: 4) {
+                    Image(systemName: "circle.fill")
+                        .foregroundColor(.blue)
+                        .font(.title2)
+                    Text("A타입")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                VStack(spacing: 4) {
+                    Image(systemName: "circle.fill")
+                        .foregroundColor(.green)
+                        .font(.title2)
+                    Text("B타입")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, minHeight: 200)
         .padding()
