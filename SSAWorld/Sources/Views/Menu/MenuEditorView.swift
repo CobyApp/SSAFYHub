@@ -52,8 +52,8 @@ struct MenuEditorView: View {
             .sheet(isPresented: $showingCamera) {
                 CameraView(selectedImage: $selectedImage)
             }
-            .onChange(of: selectedImage) { image in
-                if let image = image {
+            .onChange(of: selectedImage) { oldValue, newValue in
+                if let image = newValue {
                     processImage(image)
                 }
             }
@@ -209,136 +209,6 @@ struct MenuEditorView: View {
                 alertMessage = menuViewModel.errorMessage ?? "저장에 실패했습니다."
                 showingAlert = true
             }
-        }
-    }
-}
-
-// MARK: - Menu Type Input View
-struct MenuTypeInputView: View {
-    let title: String
-    @Binding var items: [String]
-    let color: Color
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(title)
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(color)
-                
-                Spacer()
-                
-                Button(action: { items.append("") }) {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundColor(color)
-                }
-            }
-            
-            if items.isEmpty {
-                Text("메뉴를 입력해주세요")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 60)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(items.indices, id: \.self) { index in
-                        HStack {
-                            TextField("메뉴 항목", text: $items[index])
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                            
-                            Button(action: { items.remove(at: index) }) {
-                                Image(systemName: "minus.circle.fill")
-                                    .foregroundColor(.red)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Image Picker
-struct ImagePicker: UIViewControllerRepresentable {
-    @Binding var selectedImage: UIImage?
-    @Environment(\.dismiss) private var dismiss
-    
-    func makeUIViewController(context: Context) -> PHPickerViewController {
-        var config = PHPickerConfiguration()
-        config.filter = .images
-        config.selectionLimit = 1
-        
-        let picker = PHPickerViewController(configuration: config)
-        picker.delegate = context.coordinator
-        return picker
-    }
-    
-    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        let parent: ImagePicker
-        
-        init(_ parent: ImagePicker) {
-            self.parent = parent
-        }
-        
-        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            parent.dismiss()
-            
-            guard let provider = results.first?.itemProvider else { return }
-            
-            if provider.canLoadObject(ofClass: UIImage.self) {
-                provider.loadObject(ofClass: UIImage.self) { image, _ in
-                    DispatchQueue.main.async {
-                        self.parent.selectedImage = image as? UIImage
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Camera View
-struct CameraView: UIViewControllerRepresentable {
-    @Binding var selectedImage: UIImage?
-    @Environment(\.dismiss) private var dismiss
-    
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.delegate = context.coordinator
-        picker.sourceType = .camera
-        return picker
-    }
-    
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: CameraView
-        
-        init(_ parent: CameraView) {
-            self.parent = parent
-        }
-        
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-            if let image = info[.originalImage] as? UIImage {
-                parent.selectedImage = image
-            }
-            parent.dismiss()
-        }
-        
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.dismiss()
         }
     }
 }
