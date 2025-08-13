@@ -25,6 +25,10 @@ struct SSAFYHubApp: App {
                     MainMenuView()
                         .environmentObject(authViewModel)
                         .environmentObject(appCoordinator)
+                case .settings:
+                    SettingsView()
+                        .environmentObject(authViewModel)
+                        .environmentObject(appCoordinator)
                 }
             }
             .animation(.easeInOut, value: appCoordinator.currentRoute)

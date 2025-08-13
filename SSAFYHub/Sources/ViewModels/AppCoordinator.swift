@@ -13,6 +13,7 @@ class AppCoordinator: ObservableObject {
         case auth
         case campusSelection
         case mainMenu
+        case settings
     }
     
     // MARK: - 초기화
@@ -78,6 +79,21 @@ class AppCoordinator: ObservableObject {
     // MARK: - Campus Selection Completion
     func completeCampusSelection(_ campus: Campus) {
         print("🧭 Coordinator: 캠퍼스 선택 완료 - \(campus.displayName)")
+        withAnimation(transitionAnimation) {
+            currentRoute = .mainMenu
+        }
+    }
+    
+    // MARK: - Settings Navigation
+    func navigateToSettings() {
+        print("🧭 Coordinator: 설정 화면으로 이동")
+        withAnimation(transitionAnimation) {
+            currentRoute = .settings
+        }
+    }
+    
+    func navigateBackFromSettings() {
+        print("🧭 Coordinator: 설정 화면에서 뒤로 이동")
         withAnimation(transitionAnimation) {
             currentRoute = .mainMenu
         }

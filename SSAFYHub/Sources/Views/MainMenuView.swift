@@ -5,7 +5,7 @@ struct MainMenuView: View {
     @EnvironmentObject var appCoordinator: AppCoordinator
     @StateObject var menuViewModel = MenuViewModel()
     @State private var showMenuEditor = false
-    @State private var showSettings = false
+
     @State private var showGuestAccessAlert = false
     
     // 한글 요일 텍스트
@@ -17,12 +17,12 @@ struct MainMenuView: View {
     }
     
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // 커스텀 헤더
+            headerView
+            
             ScrollView {
                 VStack(spacing: 0) {
-                    // 헤더
-                    headerView
-                    
                     // 메뉴 컨텐츠
                     if let menu = menuViewModel.currentMenu {
                         menuContentView(menu)
@@ -34,12 +34,27 @@ struct MainMenuView: View {
                 }
                 .background(Color(.systemBackground))
             }
-            .refreshable {
-                // 당기면 새로고침
-                print("🔄 메뉴 새로고침 시작")
-                await refreshMenu()
-            }
-            .navigationBarHidden(true)
+
+            .gesture(
+                DragGesture()
+                    .onEnded { value in
+                        let threshold: CGFloat = 50
+                        let translation = value.translation
+                        if translation.width > threshold {
+                            // 오른쪽으로 스와이프 - 이전 날짜
+                            print("👈 오른쪽 스와이프 - 이전 날짜로 이동")
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                menuViewModel.goToPreviousDay()
+                            }
+                        } else if translation.width < -threshold {
+                            // 왼쪽으로 스와이프 - 다음 날짜
+                            print("👉 왼쪽 스와이프 - 다음 날짜로 이동")
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                menuViewModel.goToNextDay()
+                            }
+                        }
+                    }
+            )
         }
         .onAppear {
             if let currentUser = authViewModel.currentUser {
@@ -66,11 +81,7 @@ struct MainMenuView: View {
                 .environmentObject(authViewModel)
             }
         }
-        .fullScreenCover(isPresented: $showSettings) {
-            SettingsView()
-                .environmentObject(authViewModel)
-                .environmentObject(appCoordinator)
-        }
+
         .alert("게스트 모드 제한", isPresented: $showGuestAccessAlert) {
             Button("확인") { }
         } message: {
@@ -78,99 +89,117 @@ struct MainMenuView: View {
         }
     }
     
-    // MARK: - 새로고침 함수
-    private func refreshMenu() async {
-        print("🔄 메뉴 새로고침 실행")
-        
-        // 현재 날짜의 메뉴 다시 로드
-        await MainActor.run {
-            menuViewModel.loadMenuForCurrentDate()
-        }
-        
-        // 잠시 대기 (로고침 애니메이션을 위해)
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5초
-        
-        print("✅ 메뉴 새로고침 완료")
-    }
-    
     // MARK: - Header View
     private var headerView: some View {
         VStack(spacing: 0) {
-            // 상단 설정 버튼
+            // 상단 설정 버튼과 메인 헤더를 한 줄에 배치
             HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("식단표")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(AppColors.textPrimary)
+                    
+                    if let currentUser = authViewModel.currentUser {
+                        Text(currentUser.campus.displayName)
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(AppColors.textSecondary)
+                    } else {
+                        Text("대전캠퍼스")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(AppColors.textSecondary)
+                    }
+                }
+                
                 Spacer()
                 
-                Button(action: { showSettings = true }) {
+                Button(action: {
+                    appCoordinator.navigateToSettings()
+                }) {
                     Image(systemName: "gearshape.fill")
-                        .font(.system(size: 20, weight: .medium))
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundColor(AppColors.textSecondary)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 40, height: 40)
                         .background(Color(.tertiarySystemBackground))
-                        .cornerRadius(22)
+                        .cornerRadius(20)
                 }
             }
             .padding(.horizontal, 20)
             .padding(.top, 10)
+            .padding(.bottom, 12)
             
-            // 메인 헤더
-            VStack(spacing: 20) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("오늘의 메뉴")
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
-                            .foregroundColor(AppColors.textPrimary)
-                        
-                        if let currentUser = authViewModel.currentUser {
-                            Text(currentUser.campus.displayName)
-                                .font(.system(size: 18, weight: .medium, design: .rounded))
-                                .foregroundColor(AppColors.textSecondary)
-                        } else {
-                            // 게스트 사용자일 경우 대전캠퍼스 표시
-                            Text("대전캠퍼스")
-                                .font(.system(size: 18, weight: .medium, design: .rounded))
-                                .foregroundColor(AppColors.textSecondary)
-                        }
+            // 날짜 표시 (화살표 터치 가능, 날짜와 요일 한 줄)
+            HStack {
+                Button(action: {
+                    print("👈 왼쪽 화살표 터치 - 이전 날짜로 이동")
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        menuViewModel.goToPreviousDay()
                     }
-                    
-                    Spacer()
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(AppColors.primary)
+                        .frame(width: 32, height: 32)
+                        .background(Color(.tertiarySystemBackground))
+                        .cornerRadius(16)
                 }
                 
-                // 날짜 표시
-                HStack {
+                Spacer()
+                
+                HStack(spacing: 8) {
                     Text(menuViewModel.currentDate, style: .date)
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                        .foregroundColor(AppColors.textSecondary)
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundColor(AppColors.textPrimary)
                     
                     Text("•")
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundColor(AppColors.textTertiary)
                     
                     Text(weekdayText)
                         .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundColor(AppColors.textSecondary)
-                    
-                    Spacer()
                 }
                 
-                // 게스트 모드 배너
-                if let currentUser = authViewModel.currentUser, currentUser.isGuest {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(AppColors.warning)
-                        
-                        Text("게스트 모드 - 제한된 기능")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundColor(AppColors.warning)
-                        
-                        Spacer()
+                Spacer()
+                
+                Button(action: {
+                    print("👉 오른쪽 화살표 터치 - 다음 날짜로 이동")
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        menuViewModel.goToNextDay()
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(AppColors.warning.opacity(0.1))
-                    .cornerRadius(8)
+                }) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(AppColors.primary)
+                        .frame(width: 32, height: 32)
+                        .background(Color(.tertiarySystemBackground))
+                        .cornerRadius(16)
                 }
             }
             .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .background(Color(.tertiarySystemBackground))
+            .cornerRadius(10)
+            
+            // 게스트 모드 배너 (간격 줄임)
+            if let currentUser = authViewModel.currentUser, currentUser.isGuest {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(AppColors.warning)
+                    
+                    Text("게스트 모드 - 제한된 기능")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(AppColors.warning)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(AppColors.warning.opacity(0.1))
+                .cornerRadius(6)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+            }
         }
     }
     
@@ -227,10 +256,6 @@ struct MainMenuView: View {
                     .foregroundColor(color)
                 
                 Spacer()
-                
-                Text("\(items.count)개")
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
-                    .foregroundColor(AppColors.textSecondary)
             }
             
             VStack(alignment: .leading, spacing: 8) {

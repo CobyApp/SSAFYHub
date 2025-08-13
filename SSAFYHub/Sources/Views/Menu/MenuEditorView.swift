@@ -50,7 +50,6 @@ struct MenuEditorView: View {
     @State private var showingPermissionAlert = false
     @State private var permissionAlertMessage = ""
     
-    private let ocrService = OCRService.shared
     @StateObject private var permissionChecker = PermissionChecker()
     @StateObject private var geminiService = ChatGPTService.shared  // ChatGPTService로 변경
     

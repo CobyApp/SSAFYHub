@@ -3,26 +3,21 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var appCoordinator: AppCoordinator
-    @StateObject private var themeManager = ThemeManager()
+
     @Environment(\.dismiss) private var dismiss
     
     @State private var showingLogoutAlert = false
     @State private var showingDeleteAccountAlert = false
     
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // 커스텀 헤더
+            customHeader
+            
             ScrollView {
                 VStack(spacing: AppSpacing.xl) {
-                    // 테마 설정 섹션
-                    themeSection
-                    
                     // 캠퍼스 설정 섹션
                     campusSection
-                    
-                    // 게스트 모드일 때: 나가기 버튼
-                    if let currentUser = authViewModel.currentUser, currentUser.isGuest {
-                        guestExitSection
-                    }
                     
                     // 계정 관리 섹션 (인증된 사용자만 표시)
                     if let currentUser = authViewModel.currentUser, !currentUser.isGuest {
@@ -35,19 +30,8 @@ struct SettingsView: View {
                 .padding(AppSpacing.lg)
             }
             .background(AppColors.backgroundPrimary)
-            .navigationTitle("설정")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("완료") {
-                        dismiss()
-                    }
-                    .font(AppTypography.body)
-                    .foregroundColor(AppColors.primary)
-                }
-            }
         }
-        .environmentObject(themeManager)
+
         .alert("로그아웃", isPresented: $showingLogoutAlert) {
             Button("취소", role: .cancel) { }
             Button("로그아웃", role: .destructive) {
@@ -71,47 +55,42 @@ struct SettingsView: View {
         }
     }
     
-    // MARK: - Theme Section
-    private var themeSection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            Text("테마 설정")
-                .font(AppTypography.title3)
-                .foregroundColor(AppColors.textPrimary)
-            
-            VStack(spacing: AppSpacing.sm) {
-                HStack {
-                    Image(systemName: "moon.fill")
+    // MARK: - Custom Header
+    private var customHeader: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button(action: {
+                    appCoordinator.navigateBackFromSettings()
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundColor(AppColors.primary)
-                        .frame(width: 24)
-                    
-                    Text("다크 모드")
-                        .font(AppTypography.body)
-                        .foregroundColor(AppColors.textPrimary)
-                    
-                    Spacer()
-                    
-                    Toggle("", isOn: $themeManager.isDarkMode)
-                        .onChange(of: themeManager.isDarkMode) { newValue in
-                            themeManager.setTheme(newValue)
-                        }
+                        .frame(width: 44, height: 44)
+                        .background(Color(.tertiarySystemBackground))
+                        .cornerRadius(22)
                 }
-                .padding(AppSpacing.md)
-                .background(AppColors.backgroundSecondary)
-                .cornerRadius(AppCornerRadius.medium)
                 
-                HStack {
-                    Image(systemName: "gear")
-                        .foregroundColor(AppColors.textSecondary)
-                        .frame(width: 24)
-                    
-                    Text("시스템 설정과 동기화")
-                        .font(AppTypography.caption1)
-                        .foregroundColor(AppColors.textSecondary)
-                    
-                    Spacer()
+                Spacer()
+                
+                Text("설정")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundColor(AppColors.textPrimary)
+                
+                Spacer()
+                
+                Button(action: {
+                    appCoordinator.navigateBackFromSettings()
+                }) {
+                    Text("완료")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(AppColors.primary)
+                        .frame(width: 44, height: 44)
                 }
-                .padding(.horizontal, AppSpacing.md)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 10)
+            .padding(.bottom, 20)
+            .background(AppColors.backgroundPrimary)
         }
     }
     
@@ -161,11 +140,6 @@ struct SettingsView: View {
                 
                 // 캠퍼스 선택 옵션
                 VStack(spacing: AppSpacing.sm) {
-                    Text("캠퍼스 변경")
-                        .font(AppTypography.subheadline)
-                        .foregroundColor(AppColors.textSecondary)
-                        .padding(.top, AppSpacing.sm)
-                    
                     ForEach(Campus.allCases, id: \.self) { campus in
                         Button(action: {
                             if campus.isAvailable {
