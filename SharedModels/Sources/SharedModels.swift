@@ -168,37 +168,46 @@ public struct MealMenu: Codable, Identifiable {
         
         id = try container.decode(String.self, forKey: .id)
         
-        // 날짜 필드 디코딩 개선
-        let dateString = try container.decode(String.self, forKey: .date)
-        
-        // 여러 날짜 형식 시도
-        let dateFormatters = [
-            "yyyy-MM-dd",
-            "yyyy-MM-dd HH:mm:ss",
-            "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
-            "yyyy-MM-dd'T'HH:mm:ssZ"
-        ]
-        
+        // 날짜 필드 디코딩 개선 - 문자열과 숫자 모두 지원
         var parsedDate: Date?
-        for format in dateFormatters {
-            let formatter = DateFormatter()
-            formatter.dateFormat = format
-            formatter.timeZone = TimeZone.current
+        
+        do {
+            // 먼저 문자열로 시도
+            let dateString = try container.decode(String.self, forKey: .date)
             
-            if let date = formatter.date(from: dateString) {
-                parsedDate = date
-                break
+            // 여러 날짜 형식 시도
+            let dateFormatters = [
+                "yyyy-MM-dd",
+                "yyyy-MM-dd HH:mm:ss",
+                "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+                "yyyy-MM-dd'T'HH:mm:ssZ"
+            ]
+            
+            for format in dateFormatters {
+                let formatter = DateFormatter()
+                formatter.dateFormat = format
+                formatter.timeZone = TimeZone.current
+                
+                if let date = formatter.date(from: dateString) {
+                    parsedDate = date
+                    break
+                }
+            }
+        } catch {
+            // 문자열 디코딩 실패 시 숫자로 시도 (TimeInterval)
+            do {
+                let timeInterval = try container.decode(TimeInterval.self, forKey: .date)
+                parsedDate = Date(timeIntervalSince1970: timeInterval)
+            } catch {
+                // 숫자도 실패 시 현재 시간 사용
+                parsedDate = Date()
             }
         }
         
         if let parsedDate = parsedDate {
             date = parsedDate
         } else {
-            throw DecodingError.dataCorruptedError(
-                forKey: .date,
-                in: container,
-                debugDescription: "날짜 형식이 올바르지 않습니다: \(dateString)"
-            )
+            date = Date()
         }
         
         // campus_id 필드가 누락된 경우 기본값 사용
@@ -222,19 +231,35 @@ public struct MealMenu: Codable, Identifiable {
             itemsB = []
         }
         
-        // updatedAt 필드 디코딩 개선
+        // updatedAt 필드 디코딩 개선 - 문자열과 숫자 모두 지원
+        var parsedUpdatedAt: Date?
+        
         do {
+            // 먼저 문자열로 시도
             let updatedAtString = try container.decode(String.self, forKey: .updatedAt)
             let isoFormatter = ISO8601DateFormatter()
             isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             
-            if let parsedUpdatedAt = isoFormatter.date(from: updatedAtString) {
-                updatedAt = parsedUpdatedAt
+            if let parsedDate = isoFormatter.date(from: updatedAtString) {
+                parsedUpdatedAt = parsedDate
             } else {
                 // ISO8601 형식이 아닌 경우 현재 시간 사용
-                updatedAt = Date()
+                parsedUpdatedAt = Date()
             }
         } catch {
+            // 문자열 디코딩 실패 시 숫자로 시도 (TimeInterval)
+            do {
+                let timeInterval = try container.decode(TimeInterval.self, forKey: .updatedAt)
+                parsedUpdatedAt = Date(timeIntervalSince1970: timeInterval)
+            } catch {
+                // 숫자도 실패 시 현재 시간 사용
+                parsedUpdatedAt = Date()
+            }
+        }
+        
+        if let parsedUpdatedAt = parsedUpdatedAt {
+            updatedAt = parsedUpdatedAt
+        } else {
             updatedAt = Date()
         }
         

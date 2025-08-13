@@ -100,6 +100,8 @@ struct SSAFYHubTimelineProvider: TimelineProvider {
         print("🔍 위젯: App Group UserDefaults 접근 시도")
         print("   - Suite Name: group.com.coby.ssafyhub")
         print("   - UserDefaults 객체: \(userDefaults?.description ?? "nil")")
+        print("   - Bundle ID: \(Bundle.main.bundleIdentifier ?? "unknown")")
+        print("   - App Group 접근 시도 시간: \(Date())")
         
         // UserDefaults가 nil인지 확인
         guard let userDefaults = userDefaults else {

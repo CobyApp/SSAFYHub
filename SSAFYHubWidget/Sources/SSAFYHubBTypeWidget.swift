@@ -10,7 +10,7 @@ struct SSAFYHubBTypeWidget: Widget {
         }
         .configurationDisplayName("B타입 식단")
         .description("오늘의 B타입 식단을 보여줍니다.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall])
     }
 }
 
@@ -18,63 +18,33 @@ struct SSAFYHubBTypeWidgetEntryView: View {
     var entry: SSAFYHubTimelineEntry
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // 헤더
-            HStack {
-                Image(systemName: "leaf.circle.fill")
-                    .foregroundColor(.green)
-                    .font(.title2)
-                
-                Text("B타입")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Text(entry.date, style: .date)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+        VStack {
+            Spacer()
             
-            Divider()
-            
-            // 메뉴 내용
+            // 메뉴 내용만 표시
             if let menu = entry.menu, !menu.itemsB.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(menu.itemsB.prefix(3), id: \.self) { item in
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(.green)
-                                .frame(width: 4, height: 4)
-                            
-                            Text(item)
-                                .font(.caption)
-                                .foregroundColor(.primary)
-                                .lineLimit(1)
-                            
-                            Spacer()
-                        }
-                    }
-                    
-                    if menu.itemsB.count > 3 {
-                        Text("외 \(menu.itemsB.count - 3)개")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(menu.itemsB, id: \.self) { item in
+                        Text(item)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             } else {
-                VStack {
-                    Spacer()
-                    Text("오늘은 B타입 메뉴가 없습니다")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                    Spacer()
-                }
+                Text("오늘은 B타입 메뉴가 없습니다")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white.opacity(0.8))
+                    .multilineTextAlignment(.center)
             }
+            
+            Spacer()
         }
         .padding()
-        .background(Color(.systemBackground))
+        .containerBackground(for: .widget) {
+            // B타입: 초록색 배경
+            Color(red: 0.2, green: 0.8, blue: 0.4)
+        }
     }
 }
