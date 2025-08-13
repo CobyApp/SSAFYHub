@@ -4,114 +4,107 @@ import AuthenticationServices
 struct AuthView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var appCoordinator: AppCoordinator
-    
+    @Environment(\.colorScheme) var colorScheme
+        
     var body: some View {
-        ZStack {
-            // 배경 그라데이션
-            LinearGradient(
-                colors: [Color(red: 0.95, green: 0.97, blue: 1.0), Color.white],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+        VStack(spacing: 0) {
+            // 상단 여백
+            Spacer()
             
-            VStack(spacing: 0) {
-                Spacer()
-                
-                // SSAFY 로고 및 메인 메시지
-                VStack(spacing: 24) {
-                    // SSAFY 로고
-                    VStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(AppColors.primary.opacity(0.1))
-                                .frame(width: 120, height: 120)
-                            
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 50, weight: .medium))
-                                .foregroundStyle(AppColors.primaryGradient)
-                        }
+            // SSAFY 로고 및 메인 메시지
+            VStack(spacing: AppSpacing.xl) {
+                // SSAFY 로고
+                VStack(spacing: AppSpacing.lg) {
+                    ZStack {
+                        Circle()
+                            .fill(AppColors.primary.opacity(0.1))
+                            .frame(width: 120, height: 120)
                         
-                        Text("SSAFYHub")
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .foregroundColor(AppColors.textPrimary)
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 50, weight: .medium))
+                            .foregroundColor(AppColors.primary)
                     }
                     
-                    // 메인 메시지
-                    VStack(spacing: 12) {
-                        Text("SSAFY 학생들을 위한\n종합 허브")
-                            .font(.system(size: 24, weight: .semibold, design: .rounded))
-                            .foregroundColor(AppColors.textPrimary)
-                            .multilineTextAlignment(.center)
-                            .lineSpacing(4)
-                        
-                        Text("식단 관리부터 다양한 서비스까지\n한 곳에서 편리하게")
-                            .font(.system(size: 16, weight: .regular, design: .rounded))
-                            .foregroundColor(AppColors.textSecondary)
-                            .multilineTextAlignment(.center)
-                            .lineSpacing(2)
-                    }
+                    Text("SSAFYHub")
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .foregroundColor(AppColors.textPrimary)
                 }
-                .padding(.horizontal, 32)
                 
-                Spacer()
-                
-                // 로그인 버튼들
-                VStack(spacing: 16) {
-                    // Apple Sign-In 버튼
-                    SignInWithAppleButton(
-                        onRequest: { request in
-                            request.requestedScopes = [.fullName, .email]
-                        },
-                        onCompletion: { result in
-                            Task {
-                                await handleAppleSignIn(result)
-                            }
-                        }
-                    )
-                    .signInWithAppleButtonStyle(.black)
-                    .frame(height: 56)
-                    .cornerRadius(16)
-                    .disabled(authViewModel.isAppleSignInInProgress)
-                    .opacity(authViewModel.isAppleSignInInProgress ? 0.6 : 1.0)
+                // 메인 메시지
+                VStack(spacing: AppSpacing.md) {
+                    Text("SSAFY 학생들을 위한\n종합 허브")
+                        .font(.system(size: 24, weight: .semibold, design: .rounded))
+                        .foregroundColor(AppColors.textPrimary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
                     
-                    // 게스트 모드 버튼
-                    Button(action: {
-                        Task {
-                            // 게스트로 바로 로그인하여 메인화면으로 이동
-                            await authViewModel.signInAsGuest(campus: .daejeon)
-                        }
-                    }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "person.badge.plus")
-                                .font(.system(size: 18, weight: .medium))
-                            Text("게스트로 시작하기")
-                                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                        }
+                    Text("식단 관리부터 다양한 서비스까지\n한 곳에서 편리하게")
+                        .font(.system(size: 16, weight: .regular, design: .rounded))
                         .foregroundColor(AppColors.textSecondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(Color.white)
-                        .cornerRadius(16)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                        )
-                    }
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
                 }
-                .padding(.horizontal, 24)
-                
-                Spacer()
-                
-                // 하단 정보
-                VStack(spacing: 8) {
-                    Text("2025 Coby")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(AppColors.textTertiary)
-                }
-                .padding(.bottom, 32)
             }
+            .padding(.horizontal, AppSpacing.xl)
+            
+            Spacer()
+            
+            // 로그인 버튼들
+            VStack(spacing: AppSpacing.lg) {
+                // Apple Sign-In 버튼
+                SignInWithAppleButton(
+                    onRequest: { request in
+                        request.requestedScopes = [.fullName, .email]
+                    },
+                    onCompletion: { result in
+                        Task {
+                            await handleAppleSignIn(result)
+                        }
+                    }
+                )
+                .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black) // 테마에 따라 자동 조정
+                .frame(height: 56)
+                .cornerRadius(16)
+                .disabled(authViewModel.isAppleSignInInProgress)
+                .opacity(authViewModel.isAppleSignInInProgress ? 0.6 : 1.0)
+                
+                // 게스트 모드 버튼
+                Button(action: {
+                    Task {
+                        await authViewModel.signInAsGuest(campus: .daejeon)
+                    }
+                }) {
+                    HStack(spacing: AppSpacing.sm) {
+                        Image(systemName: "person.badge.plus")
+                            .font(.system(size: 18, weight: .medium))
+                        Text("게스트로 시작하기")
+                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundColor(AppColors.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+                    .background(AppColors.backgroundSecondary)
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(AppColors.primary.opacity(0.3), lineWidth: 1.5)
+                    )
+                    .shadow(color: AppShadow.small.color, radius: AppShadow.small.radius, x: AppShadow.small.x, y: AppShadow.small.y)
+                }
+            }
+            .padding(.horizontal, AppSpacing.lg)
+            
+            Spacer()
+            
+            // 하단 정보
+            VStack(spacing: AppSpacing.sm) {
+                Text("2025 Coby")
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundColor(AppColors.textTertiary)
+            }
+            .padding(.bottom, AppSpacing.xl)
         }
+        .background(AppColors.backgroundPrimary)
         .alert("로그인 실패", isPresented: $authViewModel.showError) {
             Button("확인") { }
         } message: {

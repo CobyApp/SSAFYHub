@@ -54,11 +54,12 @@ struct MenuEditorView: View {
     @StateObject private var geminiService = ChatGPTService.shared  // ChatGPTService로 변경
     
     var body: some View {
-        VStack(spacing: 0) {
-            // 커스텀 헤더
-            customHeader
-            
-            ScrollView {
+        ZStack {
+            VStack(spacing: 0) {
+                // 커스텀 헤더
+                customHeader
+                
+                            ScrollView {
                 VStack(spacing: AppSpacing.xl) {
                     // 날짜 선택 헤더
                     dateSelectionHeader
@@ -75,6 +76,16 @@ struct MenuEditorView: View {
                 .padding(AppSpacing.lg)
             }
             .background(AppColors.backgroundPrimary)
+            .onTapGesture {
+                // 키보드가 떠있을 때 다른 곳을 터치하면 키보드 닫기
+                hideKeyboard()
+            }
+            }
+            
+            // 로딩 오버레이 (사진 분석 중일 때만 표시)
+            if isProcessingImage {
+                loadingOverlay
+            }
         }
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $selectedImage)
@@ -86,6 +97,7 @@ struct MenuEditorView: View {
         }
         .fullScreenCover(isPresented: $showingCamera) {
             CameraView(selectedImage: $selectedImage)
+                .ignoresSafeArea()
                 .onDisappear {
                     if let image = selectedImage {
                         processImage(image)
@@ -298,21 +310,6 @@ struct MenuEditorView: View {
                     .shadow(color: AppShadow.small.color, radius: AppShadow.small.radius, x: AppShadow.small.x, y: AppShadow.small.y)
                 }
             }
-            
-            if isProcessingImage {
-                HStack(spacing: AppSpacing.sm) {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                        .tint(AppColors.primary)
-                    
-                    Text("AI가 메뉴를 분석하고 있습니다...")
-                        .font(.system(size: 14, weight: .regular, design: .rounded))
-                        .foregroundColor(AppColors.textSecondary)
-                }
-                .padding(AppSpacing.md)
-                .background(AppColors.primary.opacity(0.1))
-                .cornerRadius(16)
-            }
         }
         .padding(AppSpacing.lg)
         .background(AppColors.backgroundSecondary)
@@ -443,6 +440,60 @@ struct MenuEditorView: View {
                 .shadow(color: AppShadow.small.color, radius: AppShadow.small.radius, x: AppShadow.small.x, y: AppShadow.small.y)
             }
         }
+    }
+    
+    // MARK: - Loading Overlay
+    private var loadingOverlay: some View {
+        ZStack {
+            // 반투명 배경
+            Color.black.opacity(0.7)
+                .ignoresSafeArea()
+            
+            // 로딩 컨텐츠
+            VStack(spacing: AppSpacing.xl) {
+                // 로딩 스피너
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .tint(AppColors.primary)
+                
+                VStack(spacing: AppSpacing.md) {
+                    Text("AI가 메뉴를 분석하고 있습니다...")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(AppColors.textPrimary)
+                        .multilineTextAlignment(.center)
+                        .shadow(color: .black.opacity(0.3), radius: 2, x: 1, y: 1)
+                    
+                    Text("잠시만 기다려주세요")
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundColor(AppColors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .shadow(color: .black.opacity(0.2), radius: 1, x: 0.5, y: 0.5)
+                }
+                
+                // 진행 상태 표시 (선택사항)
+                HStack(spacing: AppSpacing.sm) {
+                    ForEach(0..<3) { index in
+                        Circle()
+                            .fill(AppColors.primary.opacity(0.6))
+                            .frame(width: 8, height: 8)
+                            .scaleEffect(index == 0 ? 1.2 : 1.0)
+                            .animation(
+                                .easeInOut(duration: 0.6)
+                                .repeatForever(autoreverses: true)
+                                .delay(Double(index) * 0.2),
+                                value: isProcessingImage
+                            )
+                    }
+                }
+            }
+            .padding(AppSpacing.xl)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10)
+            )
+        }
+        .allowsHitTesting(true) // 터치 이벤트 차단
     }
     
     // MARK: - Save Button View
@@ -733,6 +784,11 @@ struct MenuEditorView: View {
     private func initializeMenuItems() {
         // 주간 모드에서는 기존 메뉴가 있으면 로드하고, 없으면 빈 배열로 초기화
         loadWeeklyExistingMenus()
+    }
+    
+    // 키보드 숨기기
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
 

@@ -83,6 +83,11 @@ class AuthViewModel: ObservableObject {
         do {
             try await supabaseService.signOut()
             authState = .unauthenticated
+            
+            // 로그아웃 후 AuthView로 이동
+            await MainActor.run {
+                coordinator?.navigateToAuth()
+            }
         } catch {
             errorMessage = "로그아웃에 실패했습니다: \(error.localizedDescription)"
         }
@@ -91,9 +96,14 @@ class AuthViewModel: ObservableObject {
     }
     
     // 게스트 모드 나가기 (별도 함수)
-    func exitGuestMode() {
+    func exitGuestMode() async {
         print("👤 게스트 모드 나가기")
         authState = .unauthenticated
+        
+        // 게스트 모드 나가기 후 AuthView로 이동
+        await MainActor.run {
+            coordinator?.navigateToAuth()
+        }
     }
     
     // 회원탈퇴
@@ -105,6 +115,11 @@ class AuthViewModel: ObservableObject {
             try await supabaseService.deleteAccount()
             authState = .unauthenticated
             print("✅ 회원탈퇴 완료")
+            
+            // 회원탈퇴 후 AuthView로 이동
+            await MainActor.run {
+                coordinator?.navigateToAuth()
+            }
         } catch {
             errorMessage = "회원탈퇴에 실패했습니다: \(error.localizedDescription)"
             print("❌ 회원탈퇴 실패: \(error)")

@@ -41,7 +41,6 @@ struct SettingsView: View {
             Button("로그아웃", role: .destructive) {
                 Task {
                     await authViewModel.signOut()
-                    appCoordinator.navigateBackFromSettings()
                 }
             }
         } message: {
@@ -258,13 +257,9 @@ struct SettingsView: View {
             
             VStack(spacing: AppSpacing.sm) {
                 Button(action: {
-                    // 게스트 모드 종료 후 회원가입 화면으로 이동
+                    // 게스트 모드 종료 후 AuthView로 이동
                     Task {
-                        await authViewModel.signOut()
-                        // AppCoordinator를 통해 회원가입 화면으로 이동
-                        await MainActor.run {
-                            appCoordinator.navigateToAuth()
-                        }
+                        await authViewModel.exitGuestMode()
                     }
                 }) {
                     HStack {

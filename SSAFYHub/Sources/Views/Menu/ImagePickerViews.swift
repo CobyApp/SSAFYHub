@@ -13,6 +13,10 @@ struct CameraView: UIViewControllerRepresentable {
         picker.delegate = context.coordinator
         picker.sourceType = .camera
         picker.allowsEditing = true
+        
+        // 전체 화면으로 표시
+        picker.modalPresentationStyle = .fullScreen
+        
         return picker
     }
     

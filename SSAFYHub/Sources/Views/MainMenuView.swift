@@ -23,12 +23,12 @@ struct MainMenuView: View {
             
             ScrollView {
                 VStack(spacing: 0) {
-                                // 메뉴 컨텐츠
-            if let menu = menuViewModel.currentMenu {
-                menuContentView(menu)
-            } else {
-                emptyMenuView
-            }
+                    // 메뉴 컨텐츠
+                    if let menu = menuViewModel.currentMenu {
+                        menuContentView(menu)
+                    } else {
+                        emptyMenuView
+                    }
                     
                     Spacer(minLength: 20)
                 }
@@ -177,7 +177,6 @@ struct MainMenuView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
-            .background(Color(.tertiarySystemBackground))
             .cornerRadius(10)
         }
     }
@@ -185,14 +184,23 @@ struct MainMenuView: View {
     // MARK: - Menu Content View
     private func menuContentView(_ menu: Menu) -> some View {
         VStack(spacing: 20) {
-            // A타입 메뉴
-            if !menu.itemsA.isEmpty {
-                menuSection(title: "A타입", items: menu.itemsA, color: AppColors.primary)
-            }
+            // A타입과 B타입이 모두 비어있는지 확인
+            let hasMenuA = !menu.itemsA.isEmpty
+            let hasMenuB = !menu.itemsB.isEmpty
             
-            // B타입 메뉴
-            if !menu.itemsB.isEmpty {
-                menuSection(title: "B타입", items: menu.itemsB, color: AppColors.success)
+            if hasMenuA || hasMenuB {
+                // A타입 메뉴
+                if hasMenuA {
+                    menuSection(title: "A타입", items: menu.itemsA, color: AppColors.primary)
+                }
+                
+                // B타입 메뉴
+                if hasMenuB {
+                    menuSection(title: "B타입", items: menu.itemsB, color: AppColors.success)
+                }
+            } else {
+                // A타입과 B타입이 모두 비어있으면 공휴일 표시
+                holidayView
             }
             
             // 메뉴 수정 버튼 (인증된 사용자) 또는 게스트나가기 버튼 (게스트 사용자)
@@ -225,8 +233,7 @@ struct MainMenuView: View {
                 } else if currentUser.isGuest {
                     Button(action: {
                         Task {
-                            await authViewModel.signOut()
-                            appCoordinator.navigateToAuth()
+                            await authViewModel.exitGuestMode()
                         }
                     }) {
                         HStack(spacing: 12) {
@@ -291,6 +298,30 @@ struct MainMenuView: View {
         .cornerRadius(16)
     }
     
+    // MARK: - Holiday View
+    private var holidayView: some View {
+        VStack(spacing: 20) {
+            VStack(spacing: 16) {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.system(size: 60, weight: .light))
+                    .foregroundColor(AppColors.textTertiary)
+                
+                VStack(spacing: 8) {
+                    Text("공휴일")
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundColor(AppColors.textPrimary)
+                    
+                    Text("오늘은 공휴일입니다")
+                        .font(.system(size: 14, weight: .regular, design: .rounded))
+                        .foregroundColor(AppColors.textSecondary)
+                }
+            }
+        }
+        .padding(20)
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(16)
+    }
+    
     // MARK: - Empty Menu View
     private var emptyMenuView: some View {
         VStack(spacing: 24) {
@@ -344,8 +375,7 @@ struct MainMenuView: View {
                 } else if currentUser.isGuest {
                     Button(action: {
                         Task {
-                            await authViewModel.signOut()
-                            appCoordinator.navigateToAuth()
+                            await authViewModel.exitGuestMode()
                         }
                     }) {
                         HStack(spacing: 12) {
