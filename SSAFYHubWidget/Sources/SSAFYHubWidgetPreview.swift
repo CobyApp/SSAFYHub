@@ -7,14 +7,14 @@ import SharedModels
 } timeline: {
     SSAFYHubTimelineEntry(
         date: Date(),
-        menu: SharedModels.Menu(
+        menu: MealMenu(
             id: UUID().uuidString,
             date: Date(),
-            campus: SharedModels.Campus.daejeon,
+            campus: Campus.daejeon,
             itemsA: ["김치찌개", "제육볶음", "미역국"],
             itemsB: ["된장찌개", "불고기", "계란국"],
-            createdAt: Date(),
-            updatedAt: Date()
+            updatedAt: Date(),
+            updatedBy: nil
         )
     )
 }
@@ -24,14 +24,14 @@ import SharedModels
 } timeline: {
     SSAFYHubTimelineEntry(
         date: Date(),
-        menu: SharedModels.Menu(
+        menu: MealMenu(
             id: UUID().uuidString,
             date: Date(),
-            campus: SharedModels.Campus.daejeon,
+            campus: Campus.daejeon,
             itemsA: ["김치찌개", "제육볶음", "미역국"],
             itemsB: ["된장찌개", "불고기", "계란국"],
-            createdAt: Date(),
-            updatedAt: Date()
+            updatedAt: Date(),
+            updatedBy: nil
         )
     )
 }

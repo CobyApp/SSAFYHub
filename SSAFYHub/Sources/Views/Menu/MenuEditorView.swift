@@ -574,7 +574,7 @@ struct MenuEditorView: View {
                     
                     // SupabaseService를 통해 저장
                     try await menuViewModel.supabaseService.saveMenu(
-                        menuInput: MenuInput(
+                        menuInput: MealMenuInput(
                             date: date,
                             campus: Campus.default,
                             itemsA: itemsA,
@@ -689,7 +689,7 @@ struct MenuEditorView: View {
     }
     
     // MARK: - 추출된 메뉴 데이터 적용
-    private func applyExtractedMenuData(_ extractedMenus: [Menu]) {
+    private func applyExtractedMenuData(_ extractedMenus: [MealMenu]) {
         guard !extractedMenus.isEmpty else { return }
         
         print("🔄 새로운 이미지 데이터로 기존 메뉴 덮어쓰기 시작")

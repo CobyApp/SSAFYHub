@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import SharedModels
 
 class ChatGPTService: ObservableObject {
     static let shared = ChatGPTService()
@@ -29,7 +30,7 @@ class ChatGPTService: ObservableObject {
     }
     
     // MARK: - 메뉴 이미지 분석
-    func analyzeMenuImage(_ image: UIImage) async throws -> [Menu] {
+    func analyzeMenuImage(_ image: UIImage) async throws -> [MealMenu] {
         print("🚀 ChatGPTService: 이미지 분석 시작")
         print("📸 이미지 크기: \(image.size)")
         
@@ -182,7 +183,7 @@ class ChatGPTService: ObservableObject {
     }
     
     // MARK: - 메뉴 데이터 파싱
-    private func parseMenuData(from text: String) throws -> [Menu] {
+    private func parseMenuData(from text: String) throws -> [MealMenu] {
         print("🔍 메뉴 데이터 파싱 시작")
         
         // JSON 부분 추출
@@ -199,7 +200,7 @@ class ChatGPTService: ObservableObject {
             let jsonData = jsonString.data(using: .utf8)!
             let geminiMenuData = try JSONDecoder().decode(GeminiMenuData.self, from: jsonData)
             
-            var menus: [Menu] = []
+            var menus: [MealMenu] = []
             let currentUser = "AI_Extracted"
             
             for geminiMenu in geminiMenuData.menus {
@@ -211,8 +212,8 @@ class ChatGPTService: ObservableObject {
                     continue
                 }
                 
-                // Menu 모델 생성
-                let menu = Menu(
+                // MealMenu 모델 생성
+                let menu = MealMenu(
                     id: UUID().uuidString,
                     date: date,
                     campus: .daejeon, // 현재는 대전캠퍼스만 지원

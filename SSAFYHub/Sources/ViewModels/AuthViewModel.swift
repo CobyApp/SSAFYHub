@@ -15,7 +15,7 @@ class AuthViewModel: ObservableObject {
     let supabaseService = SupabaseService.shared
     weak var coordinator: AppCoordinator?
     
-    var currentUser: User? {
+    var currentUser: AppUser? {
         if case .authenticated(let user) = authState {
             return user
         }
@@ -140,7 +140,7 @@ class AuthViewModel: ObservableObject {
             if case .authenticated(let user) = authState {
                 try await supabaseService.updateUserCampus(userId: user.id, campus: campus)
                 
-                let updatedUser = User(
+                let updatedUser = AppUser(
                     id: user.id,
                     email: user.email,
                     campus: campus,
@@ -163,11 +163,11 @@ class AuthViewModel: ObservableObject {
         errorMessage = nil
         
         // 게스트 사용자를 로컬에서 직접 생성 (데이터베이스 저장 없음)
-        let guestUser = User(
+        let guestUser = AppUser(
             id: UUID().uuidString,
             email: "guest@ssafyhub.com",
             campus: campus,
-            userType: .guest,
+            userType: UserType.guest,
             createdAt: Date(),
             updatedAt: Date()
         )
@@ -230,7 +230,7 @@ class AuthViewModel: ObservableObject {
         isAppleSignInInProgress = false
     }
     
-    public func fetchUserData(userId: String) async throws -> User {
+    public func fetchUserData(userId: String) async throws -> AppUser {
         let response = try await supabaseService.client
             .database
             .from("users")
@@ -255,7 +255,7 @@ class AuthViewModel: ObservableObject {
         let createdAt = ISO8601DateFormatter().date(from: jsonResult["created_at"] as? String ?? "") ?? Date()
         let updatedAt = ISO8601DateFormatter().date(from: jsonResult["updated_at"] as? String ?? "") ?? Date()
         
-        return User(
+        return AppUser(
             id: userId,
             email: email,
             campus: campus,

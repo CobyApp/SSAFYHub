@@ -56,7 +56,7 @@ class AppCoordinator: ObservableObject {
     }
     
     // MARK: - Smart Navigation for Existing Users
-    func handleUserAuthentication(_ user: User) {
+    func handleUserAuthentication(_ user: AppUser) {
         print("🧭 Coordinator: 사용자 인증 처리 - \(user.email)")
         
         // 모든 사용자는 바로 메인화면으로 이동
@@ -80,7 +80,7 @@ class AppCoordinator: ObservableObject {
     }
     
     // MARK: - Direct Navigation from Auth
-    func handleDirectAuthentication(_ user: User) {
+    func handleDirectAuthentication(_ user: AppUser) {
         print("🧭 Coordinator: 직접 인증 처리 - \(user.email)")
         
         // 즉시 메인화면으로 이동 (Apple 로그인 성공 시)

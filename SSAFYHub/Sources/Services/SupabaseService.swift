@@ -39,7 +39,7 @@ class SupabaseService: ObservableObject {
     }
     
     // MARK: - Apple Sign In
-    func authenticateWithApple(identityToken: String) async throws -> User {
+    func authenticateWithApple(identityToken: String) async throws -> AppUser {
         print("🍎 SupabaseService: Apple 로그인 시작")
         
         let session = try await client.auth.signInWithIdToken(
@@ -70,7 +70,7 @@ class SupabaseService: ObservableObject {
             let userCampus: Campus = .daejeon
             print("🏫 새 사용자 기본 캠퍼스 설정: \(userCampus.displayName)")
             
-            let newUser = User(
+            let newUser = AppUser(
                 id: userId,
                 email: userEmail,
                 campus: userCampus,
@@ -195,7 +195,7 @@ class SupabaseService: ObservableObject {
     }
     
     // MARK: - Simple Session Persistence
-    func saveUserSession(_ user: User) async {
+    func saveUserSession(_ user: AppUser) async {
         do {
             let encoder = JSONEncoder()
             let userData = try encoder.encode(user)
@@ -214,13 +214,13 @@ class SupabaseService: ObservableObject {
         }
     }
     
-    func restoreUserSession() async -> User? {
+    func restoreUserSession() async -> AppUser? {
         do {
             // 먼저 키체인에서 시도
             let keychain = Keychain(service: "com.coby.ssafyhub.user")
             if let userData = try? keychain.getData("user.session") {
                 let decoder = JSONDecoder()
-                let user = try decoder.decode(User.self, from: userData)
+                let user = try decoder.decode(AppUser.self, from: userData)
                 print("🔑 SupabaseService: 키체인에서 사용자 세션 복구 성공 - \(user.email)")
                 return user
             }
@@ -228,7 +228,7 @@ class SupabaseService: ObservableObject {
             // UserDefaults에서 시도
             if let userData = UserDefaults.standard.data(forKey: "saved.user.session") {
                 let decoder = JSONDecoder()
-                let user = try decoder.decode(User.self, from: userData)
+                let user = try decoder.decode(AppUser.self, from: userData)
                 print("💾 SupabaseService: UserDefaults에서 사용자 세션 복구 성공 - \(user.email)")
                 return user
             }
@@ -242,7 +242,7 @@ class SupabaseService: ObservableObject {
         }
     }
     
-    func getCurrentUser() async throws -> User? {
+    func getCurrentUser() async throws -> AppUser? {
         let session = try await client.auth.session
         let userId = session.user.id.uuidString
         
@@ -257,7 +257,7 @@ class SupabaseService: ObservableObject {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         
-        let user = try decoder.decode(User.self, from: data)
+        let user = try decoder.decode(AppUser.self, from: data)
         return user
     }
     
@@ -271,7 +271,7 @@ class SupabaseService: ObservableObject {
             .execute()
     }
     
-    func upsertUser(_ user: User) async throws {
+    func upsertUser(_ user: AppUser) async throws {
         let userData: [String: String] = [
             "id": user.id,
             "email": user.email,
@@ -287,7 +287,7 @@ class SupabaseService: ObservableObject {
             .execute()
     }
     
-    func fetchMenu(date: Date, campus: Campus) async throws -> Menu? {
+    func fetchMenu(date: Date, campus: Campus) async throws -> MealMenu? {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         dateFormatter.timeZone = TimeZone.current
@@ -316,12 +316,12 @@ class SupabaseService: ObservableObject {
         // keyDecodingStrategy 제거 - CodingKeys와 정확히 매치
         // decoder.keyDecodingStrategy = .convertFromSnakeCase
         
-        let menu = try decoder.decode(Menu.self, from: data)
+        let menu = try decoder.decode(MealMenu.self, from: data)
         print("✅ SupabaseService: 메뉴 조회 성공 - ID: \(menu.id)")
         return menu
     }
     
-    func saveMenu(menuInput: MenuInput, updatedBy: String?) async throws {
+    func saveMenu(menuInput: MealMenuInput, updatedBy: String?) async throws {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let dateString = dateFormatter.string(from: menuInput.date)
@@ -392,7 +392,7 @@ class SupabaseService: ObservableObject {
     }
     
     // MARK: - Weekly Menu Saving
-    func saveWeeklyMenu(weeklyInput: WeeklyMenuInput, updatedBy: String?) async throws {
+    func saveWeeklyMenu(weeklyInput: WeeklyMealMenuInput, updatedBy: String?) async throws {
         print("📅 주간 메뉴 저장 시작")
         print("🏫 캠퍼스: \(weeklyInput.campus.displayName)")
         print("📅 시작일: \(weeklyInput.startDate)")
@@ -408,7 +408,7 @@ class SupabaseService: ObservableObject {
             print("🍽️ A타입: \(dailyMenu.itemsA)")
             print("🍽️ B타입: \(dailyMenu.itemsB)")
             
-            let menuInput = MenuInput(
+            let menuInput = MealMenuInput(
                 date: dailyMenu.date,
                 campus: weeklyInput.campus,
                 itemsA: dailyMenu.itemsA,
@@ -422,7 +422,7 @@ class SupabaseService: ObservableObject {
     }
     
     // MARK: - Guest Authentication
-    func signInAsGuest(campus: Campus) async throws -> User {
+    func signInAsGuest(campus: Campus) async throws -> AppUser {
         print("👤 SupabaseService: 게스트 로그인 시작 - 캠퍼스: \(campus.displayName)")
         
         // 게스트 사용자는 항상 대전캠퍼스로 강제 설정
@@ -430,11 +430,11 @@ class SupabaseService: ObservableObject {
         print("⚠️ 게스트 사용자 캠퍼스를 대전으로 강제 설정: \(forcedCampus.displayName)")
         
         // 게스트 사용자 생성 (userType을 .guest로 명시)
-        let guestUser = User(
+        let guestUser = AppUser(
             id: UUID().uuidString,
             email: "guest@ssafyhub.com",
             campus: forcedCampus,  // 대전캠퍼스로 강제 설정
-            userType: .guest,  // 게스트 타입으로 명시
+            userType: UserType.guest,  // 게스트 타입으로 명시
             createdAt: Date(),
             updatedAt: Date()
         )
@@ -456,7 +456,7 @@ class SupabaseService: ObservableObject {
     }
     
     // 게스트용 가상 세션 생성
-    private func createVirtualSession(for user: User) -> Session {
+    private func createVirtualSession(for user: AppUser) -> Session {
         // 게스트 사용자를 위한 가상 세션 생성
         // 실제 Supabase 세션이 아니므로 필요한 최소 정보만 포함
         
@@ -466,23 +466,9 @@ class SupabaseService: ObservableObject {
             appMetadata: [:],
             userMetadata: [:],
             aud: "authenticated",
-            confirmationSentAt: nil,
-            recoverySentAt: nil,
-            emailChangeSentAt: nil,
-            newEmail: nil,
-            invitedAt: nil,
-            actionLink: nil,
             email: user.email,
-            phone: nil,
             createdAt: user.createdAt,
-            confirmedAt: nil,
-            emailConfirmedAt: nil,
-            phoneConfirmedAt: nil,
-            lastSignInAt: nil,
-            role: nil,
-            updatedAt: user.updatedAt,
-            identities: [],
-            factors: []
+            updatedAt: user.updatedAt
         )
         
         // 가상 세션 반환 (실제로는 사용되지 않음)

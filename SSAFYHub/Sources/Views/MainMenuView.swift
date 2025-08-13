@@ -183,7 +183,7 @@ struct MainMenuView: View {
     }
     
     // MARK: - Menu Content View
-    private func menuContentView(_ menu: Menu) -> some View {
+    private func menuContentView(_ menu: MealMenu) -> some View {
         VStack(spacing: 20) {
             // A타입과 B타입이 모두 비어있는지 확인
             let hasMenuA = !menu.itemsA.isEmpty

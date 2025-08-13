@@ -6,7 +6,7 @@ import SharedModels
 class MenuViewModel: ObservableObject {
     @Published var currentDate = Date()
     @Published var selectedCampus: Campus = .daejeon  // 기본값을 대전으로 변경
-    @Published var currentMenu: Menu?
+    @Published var currentMenu: MealMenu?
     @Published var isLoading = false
     @Published var errorMessage: String?
     
@@ -97,10 +97,11 @@ class MenuViewModel: ObservableObject {
         errorMessage = nil
         Task {
             do {
-                self.currentMenu = try await supabaseService.fetchMenu(date: dateOnly, campus: selectedCampus)
+                let fetchedMenu = try await supabaseService.fetchMenu(date: dateOnly, campus: selectedCampus)
                 
                 await MainActor.run {
-                    if let menu = self.currentMenu {
+                    if let menu = fetchedMenu {
+                        self.currentMenu = menu
                         print("✅ 메뉴 로딩 성공: A타입 \(menu.itemsA.count)개, B타입 \(menu.itemsB.count)개")
                         
                         // 위젯에 메뉴 데이터 공유
@@ -153,7 +154,7 @@ class MenuViewModel: ObservableObject {
     }
     
     // MARK: - Menu Saving
-    func saveMenu(menuInput: MenuInput, updatedBy: String?) async {
+    func saveMenu(menuInput: MealMenuInput, updatedBy: String?) async {
         isLoading = true
         errorMessage = nil
         do {
@@ -171,7 +172,7 @@ class MenuViewModel: ObservableObject {
     }
     
     // MARK: - Weekly Menu Saving
-    func saveWeeklyMenu(weeklyInput: WeeklyMenuInput, updatedBy: String?) async {
+    func saveWeeklyMenu(weeklyInput: WeeklyMealMenuInput, updatedBy: String?) async {
         isLoading = true
         errorMessage = nil
         do {
