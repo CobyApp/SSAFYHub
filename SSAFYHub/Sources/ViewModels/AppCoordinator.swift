@@ -1,5 +1,6 @@
 import SwiftUI
 import Foundation
+import SharedModels
 
 @MainActor
 class AppCoordinator: ObservableObject {

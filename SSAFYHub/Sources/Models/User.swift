@@ -1,4 +1,5 @@
 import Foundation
+import SharedModels
 
 // MARK: - User Type
 enum UserType: String, Codable, CaseIterable {

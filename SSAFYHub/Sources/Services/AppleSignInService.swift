@@ -128,33 +128,6 @@ class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthor
             case .unknown:
                 print("🍎 Apple 로그인 중 알 수 없는 오류")
                 continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -9, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 중 알 수 없는 오류가 발생했습니다."]))
-            case .invalidRequest:
-                print("🍎 Apple 로그인 요청이 유효하지 않음")
-                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -12, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 요청이 유효하지 않습니다."]))
-            case .invalidClient:
-                print("🍎 Apple 로그인 클라이언트가 유효하지 않음")
-                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -13, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 클라이언트가 유효하지 않습니다."]))
-            case .invalidScope:
-                print("🍎 Apple 로그인 스코프가 유효하지 않음")
-                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -14, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 스코프가 유효하지 않습니다."]))
-            case .invalidGrant:
-                print("🍎 Apple 로그인 그랜트가 유효하지 않음")
-                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -15, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 그랜트가 유효하지 않습니다."]))
-            case .unauthorizedClient:
-                print("🍎 Apple 로그인 클라이언트가 인증되지 않음")
-                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -16, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 클라이언트가 인증되지 않았습니다."]))
-            case .unsupportedGrantType:
-                print("🍎 Apple 로그인 그랜트 타입이 지원되지 않음")
-                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -17, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 그랜트 타입이 지원되지 않습니다."]))
-            case .insufficientScope:
-                print("🍎 Apple 로그인 스코프가 부족함")
-                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -18, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 스코프가 부족합니다."]))
-            case .serverError:
-                print("🍎 Apple 로그인 서버 오류")
-                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -19, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 서버 오류가 발생했습니다."]))
-            case .temporarilyUnavailable:
-                print("🍎 Apple 로그인 서비스가 일시적으로 사용 불가")
-                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -20, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 서비스가 일시적으로 사용할 수 없습니다."]))
             @unknown default:
                 print("🍎 Apple 로그인 중 알 수 없는 오류 (default)")
                 continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -10, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 중 오류가 발생했습니다."]))

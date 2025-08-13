@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import SharedModels
 import Supabase
 import AuthenticationServices
 

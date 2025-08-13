@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import SharedModels
 
 @MainActor
 class MenuViewModel: ObservableObject {
@@ -101,8 +102,14 @@ class MenuViewModel: ObservableObject {
                 await MainActor.run {
                     if let menu = self.currentMenu {
                         print("✅ 메뉴 로딩 성공: A타입 \(menu.itemsA.count)개, B타입 \(menu.itemsB.count)개")
+                        
+                        // 위젯에 메뉴 데이터 공유
+                        WidgetDataService.shared.shareMenuToWidget(menu)
                     } else {
                         print("📭 해당 날짜에 메뉴 없음")
+                        
+                        // 위젯 데이터 초기화
+                        WidgetDataService.shared.clearWidgetData()
                     }
                 }
             } catch {
@@ -152,6 +159,11 @@ class MenuViewModel: ObservableObject {
         do {
             try await supabaseService.saveMenu(menuInput: menuInput, updatedBy: updatedBy)
             loadMenuForCurrentDate() // Reload menu after saving
+            
+            // 메뉴 저장 후 위젯 데이터도 업데이트
+            if let currentMenu = self.currentMenu {
+                WidgetDataService.shared.shareMenuToWidget(currentMenu)
+            }
         } catch {
             errorMessage = "메뉴 저장에 실패했습니다: \(error.localizedDescription)"
         }

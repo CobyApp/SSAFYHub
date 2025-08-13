@@ -1,4 +1,5 @@
 import SwiftUI
+import SharedModels
 
 struct SettingsView: View {
     @EnvironmentObject var authViewModel: AuthViewModel

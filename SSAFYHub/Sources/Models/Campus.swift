@@ -1,13 +1,8 @@
 import Foundation
+import SharedModels
 
-// MARK: - Campus
-enum Campus: String, CaseIterable, Codable {
-    case seoul = "seoul"
-    case daejeon = "daejeon"
-    case gwangju = "gwangju"
-    case gumi = "gumi"
-    case busan = "busan"
-    
+// MARK: - Campus Extension
+extension Campus {
     var displayName: String {
         switch self {
         case .seoul:

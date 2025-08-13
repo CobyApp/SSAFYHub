@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import SharedModels
 
 struct MenuEditorView: View {
     @Environment(\.dismiss) private var dismiss

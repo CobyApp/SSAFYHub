@@ -4,6 +4,27 @@ let project = Project(
     name: "SSAFYHub",
     targets: [
         .target(
+            name: "SharedModels",
+            destinations: [.iPhone],
+            product: .framework,
+            productName: "SharedModels",
+            bundleId: "com.coby.ssafyhub.sharedmodels",
+            infoPlist: .default,
+            sources: ["SharedModels/Sources/**"],
+            resources: [],
+            dependencies: [],
+            settings: .settings(
+                base: [
+                    "DEVELOPMENT_TEAM": "3Y8YH8GWMM",
+                    "TARGETED_DEVICE_FAMILY": "1",
+                    "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
+                    "SUPPORTED_PLATFORMS": "iphoneos",
+                    "SUPPORTS_MACCATALYST": "NO",
+                    "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "NO"
+                ]
+            )
+        ),
+        .target(
             name: "SSAFYHub",
             destinations: [.iPhone],
             product: .app,
@@ -32,6 +53,7 @@ let project = Project(
             resources: ["SSAFYHub/Resources/**"],
             entitlements: "SSAFYHub/SSAFYHub.entitlements",
             dependencies: [
+                .target(name: "SharedModels"),
                 .external(name: "Supabase")
             ],
             settings: .settings(
@@ -58,6 +80,38 @@ let project = Project(
             settings: .settings(
                 base: [
                     "DEVELOPMENT_TEAM": "3Y8YH8GWMM"
+                ]
+            )
+        ),
+        .target(
+            name: "SSAFYHubWidget",
+            destinations: [.iPhone],
+            product: .appExtension,
+            productName: "SSAFYHubWidget",
+            bundleId: "com.coby.ssafyhub.widget",
+            infoPlist: .extendingDefault(with: [
+                "CFBundleDisplayName": "SSAFYHub 위젯",
+                "CFBundleName": "SSAFYHub 위젯",
+                "NSExtension": [
+                    "NSExtensionPointIdentifier": "com.apple.widgetkit-extension"
+                ]
+            ]),
+            sources: ["SSAFYHubWidget/Sources/**"],
+            resources: ["SSAFYHubWidget/Resources/**"],
+            entitlements: "SSAFYHubWidget/SSAFYHubWidget.entitlements",
+            dependencies: [
+                .target(name: "SharedModels"),
+                .external(name: "Supabase")
+            ],
+            settings: .settings(
+                base: [
+                    "DEVELOPMENT_TEAM": "3Y8YH8GWMM",
+                    "TARGETED_DEVICE_FAMILY": "1",
+                    "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
+                    "SUPPORTED_PLATFORMS": "iphoneos",
+                    "SUPPORTS_MACCATALYST": "NO",
+                    "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "NO",
+                    "CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION": "YES"
                 ]
             )
         ),
