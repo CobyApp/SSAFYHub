@@ -57,6 +57,7 @@ class AuthViewModel: ObservableObject {
     func signInWithApple() async {
         isLoading = true
         errorMessage = nil
+        isAppleSignInInProgress = true
         
         do {
             let identityToken = try await AppleSignInService.shared.signInWithApple()
@@ -67,6 +68,7 @@ class AuthViewModel: ObservableObject {
             print("🔐 Supabase 인증 성공: \(user.email)")
             
             authState = .authenticated(user)
+            
         } catch {
             print("❌ Apple 로그인 실패: \(error)")
             errorMessage = "Apple 로그인에 실패했습니다: \(error.localizedDescription)"
@@ -74,6 +76,7 @@ class AuthViewModel: ObservableObject {
         }
         
         isLoading = false
+        isAppleSignInInProgress = false
     }
     
     func signOut() async {

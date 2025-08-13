@@ -7,26 +7,15 @@ class AppleSignInService: NSObject, ObservableObject, Sendable {
     static let shared = AppleSignInService()
     
     private let supabaseService = SupabaseService.shared
-    private var isSignInInProgress = false  // 로그인 진행 상태 추가
+    private var currentDelegate: AppleSignInDelegate?
     
     private override init() {
         super.init()
     }
     
     func signInWithApple() async throws -> String {
-        // 중복 실행 방지
-        guard !isSignInInProgress else {
-            print("⚠️ AppleSignInService: Apple 로그인이 이미 진행 중입니다")
-            throw NSError(domain: "AppleSignInError", code: -12, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인이 이미 진행 중입니다"])
-        }
+        print("🍎 Apple 로그인 시작")
         
-        isSignInInProgress = true  // 로그인 진행 상태 설정
-        
-        defer {
-            isSignInInProgress = false  // 함수 종료 시 상태 초기화
-        }
-        
-        print("🍎 Apple 로그인 시작 - continuation 생성")
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.main.async {
                 let request = ASAuthorizationAppleIDProvider().createRequest()
@@ -35,20 +24,19 @@ class AppleSignInService: NSObject, ObservableObject, Sendable {
                 let authorizationController = ASAuthorizationController(authorizationRequests: [request])
                 let delegate = AppleSignInDelegate(continuation: continuation, supabaseService: self.supabaseService)
                 
-                // delegate를 강하게 참조하여 continuation 누수 방지
+                // 현재 delegate 참조 저장
+                self.currentDelegate = delegate
+                
                 authorizationController.delegate = delegate
                 authorizationController.presentationContextProvider = delegate
                 
-                // delegate를 authorizationController에 연결하여 생명주기 관리
-                objc_setAssociatedObject(authorizationController, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-                
-                print("🍎 Apple 로그인 팝업 표시 시작")
+                print("🍎 Apple 로그인 팝업 표시")
                 authorizationController.performRequests()
                 
-                // 타임아웃 시간을 15초로 증가 (Apple 로그인은 시간이 걸릴 수 있음)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) {
+                // 타임아웃 설정 (30초)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 30.0) {
                     if !delegate.hasResumed {
-                        print("⏰ Apple 로그인 타임아웃 (15초)")
+                        print("⏰ Apple 로그인 타임아웃")
                         delegate.handleTimeout()
                     }
                 }
@@ -59,11 +47,11 @@ class AppleSignInService: NSObject, ObservableObject, Sendable {
 
 @MainActor
 class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
-    private let continuation: CheckedContinuation<String, Error> // Changed to String
+    private let continuation: CheckedContinuation<String, Error>
     private let supabaseService: SupabaseService
     private(set) var hasResumed = false
     
-    init(continuation: CheckedContinuation<String, Error>, supabaseService: SupabaseService) { // Changed to String
+    init(continuation: CheckedContinuation<String, Error>, supabaseService: SupabaseService) {
         self.continuation = continuation
         self.supabaseService = supabaseService
         print("🍎 AppleSignInDelegate 초기화됨")
@@ -74,7 +62,6 @@ class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthor
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = windowScene.windows.first else {
             print("⚠️ presentation anchor를 찾을 수 없음")
-            // presentation anchor를 찾을 수 없는 경우 continuation resume
             if !hasResumed {
                 hasResumed = true
                 continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -3, userInfo: [NSLocalizedDescriptionKey: "No window found"]))
@@ -108,26 +95,11 @@ class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthor
         }
         
         print("🍎 Identity token 획득, Supabase 인증 시작")
-        
-        // 즉시 hasResumed을 true로 설정하여 중복 처리 방지
         hasResumed = true
         
-        Task {
-            do {
-                // SupabaseService.authenticateWithApple now returns User, not String
-                let user = try await supabaseService.authenticateWithApple(identityToken: identityToken)
-                print("🍎 Supabase 인증 성공: \(user.email)")
-                
-                // continuation resume (이미 hasResumed이 true이므로 중복 방지됨)
-                print("✅ continuation resume 성공")
-                continuation.resume(returning: identityToken) // Changed to return identityToken
-                
-            } catch {
-                print("❌ Supabase 인증 실패: \(error)")
-                // 에러 발생 시에도 continuation resume
-                continuation.resume(throwing: error)
-            }
-        }
+        // Identity token을 바로 반환 (Supabase 인증은 AuthViewModel에서 처리)
+        print("✅ continuation resume 성공")
+        continuation.resume(returning: identityToken)
     }
     
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
@@ -156,6 +128,33 @@ class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthor
             case .unknown:
                 print("🍎 Apple 로그인 중 알 수 없는 오류")
                 continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -9, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 중 알 수 없는 오류가 발생했습니다."]))
+            case .invalidRequest:
+                print("🍎 Apple 로그인 요청이 유효하지 않음")
+                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -12, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 요청이 유효하지 않습니다."]))
+            case .invalidClient:
+                print("🍎 Apple 로그인 클라이언트가 유효하지 않음")
+                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -13, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 클라이언트가 유효하지 않습니다."]))
+            case .invalidScope:
+                print("🍎 Apple 로그인 스코프가 유효하지 않음")
+                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -14, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 스코프가 유효하지 않습니다."]))
+            case .invalidGrant:
+                print("🍎 Apple 로그인 그랜트가 유효하지 않음")
+                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -15, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 그랜트가 유효하지 않습니다."]))
+            case .unauthorizedClient:
+                print("🍎 Apple 로그인 클라이언트가 인증되지 않음")
+                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -16, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 클라이언트가 인증되지 않았습니다."]))
+            case .unsupportedGrantType:
+                print("🍎 Apple 로그인 그랜트 타입이 지원되지 않음")
+                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -17, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 그랜트 타입이 지원되지 않습니다."]))
+            case .insufficientScope:
+                print("🍎 Apple 로그인 스코프가 부족함")
+                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -18, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 스코프가 부족합니다."]))
+            case .serverError:
+                print("🍎 Apple 로그인 서버 오류")
+                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -19, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 서버 오류가 발생했습니다."]))
+            case .temporarilyUnavailable:
+                print("🍎 Apple 로그인 서비스가 일시적으로 사용 불가")
+                continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -20, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 서비스가 일시적으로 사용할 수 없습니다."]))
             @unknown default:
                 print("🍎 Apple 로그인 중 알 수 없는 오류 (default)")
                 continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -10, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 중 오류가 발생했습니다."]))
@@ -174,7 +173,7 @@ class AppleSignInDelegate: NSObject, ASAuthorizationControllerDelegate, ASAuthor
         continuation.resume(throwing: NSError(domain: "AppleSignInError", code: -11, userInfo: [NSLocalizedDescriptionKey: "Apple 로그인 시간이 초과되었습니다. 다시 시도해주세요."]))
     }
     
-    // deinit에서도 continuation이 resume되지 않았으면 에러로 처리
+    // deinit에서 continuation이 resume되지 않았으면 에러로 처리
     deinit {
         print("🍎 AppleSignInDelegate deinit")
         guard !hasResumed else { return }
