@@ -23,12 +23,12 @@ struct MainMenuView: View {
             
             ScrollView {
                 VStack(spacing: 0) {
-                    // 메뉴 컨텐츠
-                    if let menu = menuViewModel.currentMenu {
-                        menuContentView(menu)
-                    } else {
-                        emptyMenuView
-                    }
+                                // 메뉴 컨텐츠
+            if let menu = menuViewModel.currentMenu {
+                menuContentView(menu)
+            } else {
+                emptyMenuView
+            }
                     
                     Spacer(minLength: 20)
                 }
@@ -179,27 +179,6 @@ struct MainMenuView: View {
             .padding(.vertical, 8)
             .background(Color(.tertiarySystemBackground))
             .cornerRadius(10)
-            
-            // 게스트 모드 배너 (간격 줄임)
-            if let currentUser = authViewModel.currentUser, currentUser.isGuest {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(AppColors.warning)
-                    
-                    Text("게스트 모드 - 제한된 기능")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(AppColors.warning)
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(AppColors.warning.opacity(0.1))
-                .cornerRadius(6)
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-            }
         }
     }
     
@@ -216,31 +195,63 @@ struct MainMenuView: View {
                 menuSection(title: "B타입", items: menu.itemsB, color: AppColors.success)
             }
             
-            // 메뉴 수정 버튼 (인증된 사용자만)
-            if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
-                Button(action: { showMenuEditor = true }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "pencil.circle.fill")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(AppColors.primary)
-                        
-                        Text("메뉴 수정하기")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .foregroundColor(AppColors.primary)
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(AppColors.primary)
+            // 메뉴 수정 버튼 (인증된 사용자) 또는 게스트나가기 버튼 (게스트 사용자)
+            if let currentUser = authViewModel.currentUser {
+                if currentUser.isAuthenticated {
+                    Button(action: { showMenuEditor = true }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "pencil.circle.fill")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(AppColors.primary)
+                            
+                            Text("메뉴 수정하기")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .foregroundColor(AppColors.primary)
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(AppColors.primary)
+                        }
+                        .padding(20)
+                        .background(AppColors.primary.opacity(0.1))
+                        .cornerRadius(16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(AppColors.primary.opacity(0.3), lineWidth: 1)
+                        )
                     }
-                    .padding(20)
-                    .background(AppColors.primary.opacity(0.1))
-                    .cornerRadius(16)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(AppColors.primary.opacity(0.3), lineWidth: 1)
-                    )
+                } else if currentUser.isGuest {
+                    Button(action: {
+                        Task {
+                            await authViewModel.signOut()
+                            appCoordinator.navigateToAuth()
+                        }
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "arrow.left.circle.fill")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(AppColors.error)
+                            
+                            Text("게스트 모드 나가기")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .foregroundColor(AppColors.error)
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(AppColors.error)
+                        }
+                        .padding(20)
+                        .background(AppColors.error.opacity(0.1))
+                        .cornerRadius(16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(AppColors.error.opacity(0.3), lineWidth: 1)
+                        )
+                    }
                 }
             }
         }
@@ -307,27 +318,55 @@ struct MainMenuView: View {
                 }
             }
             
-            // 메뉴 추가 버튼 (인증된 사용자만)
-            if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
-                Button(action: { showMenuEditor = true }) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(.white)
-                        
-                        Text("이번주 메뉴 추가하기")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white)
+            // 메뉴 추가 버튼 (인증된 사용자) 또는 게스트나가기 버튼 (게스트 사용자)
+            if let currentUser = authViewModel.currentUser {
+                if currentUser.isAuthenticated {
+                    Button(action: { showMenuEditor = true }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(.white)
+                            
+                            Text("이번주 메뉴 추가하기")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .foregroundColor(.white)
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                        .padding(20)
+                        .background(AppColors.primary)
+                        .cornerRadius(16)
                     }
-                    .padding(20)
-                    .background(AppColors.primary)
-                    .cornerRadius(16)
+                } else if currentUser.isGuest {
+                    Button(action: {
+                        Task {
+                            await authViewModel.signOut()
+                            appCoordinator.navigateToAuth()
+                        }
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "arrow.left.circle.fill")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(.white)
+                            
+                            Text("게스트 모드 나가기")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white)
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                        .padding(20)
+                        .background(AppColors.error)
+                        .cornerRadius(16)
+                    }
                 }
             }
             

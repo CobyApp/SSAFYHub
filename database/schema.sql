@@ -60,6 +60,10 @@ CREATE POLICY "Users can update their own profile" ON users
 CREATE POLICY "Users can insert their own profile" ON users
     FOR INSERT WITH CHECK (auth.uid() = id);
 
+-- Allow guest user creation (for unauthenticated users)
+CREATE POLICY "Allow guest user creation" ON users
+    FOR INSERT WITH CHECK (user_type = 'guest' AND email = 'guest@ssafyhub.com');
+
 -- Create policies for menus table (누구나 읽기/쓰기 가능)
 CREATE POLICY "Anyone can view menus" ON menus
     FOR SELECT USING (true);

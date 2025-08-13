@@ -11,7 +11,6 @@ class AppCoordinator: ObservableObject {
     // MARK: - App Routes
     enum AppRoute: Hashable {
         case auth
-        case campusSelection
         case mainMenu
         case settings
     }
@@ -25,13 +24,6 @@ class AppCoordinator: ObservableObject {
     }
     
     // MARK: - Navigation Methods with Smart Logic
-    func navigateToCampusSelection() {
-        print("🧭 Coordinator: 캠퍼스 선택 화면으로 이동")
-        withAnimation(transitionAnimation) {
-            currentRoute = .campusSelection
-        }
-    }
-    
     func navigateToMainMenu() {
         print("🧭 Coordinator: 메인 메뉴 화면으로 이동")
         withAnimation(transitionAnimation) {
@@ -66,22 +58,9 @@ class AppCoordinator: ObservableObject {
     func handleUserAuthentication(_ user: User) {
         print("🧭 Coordinator: 사용자 인증 처리 - \(user.email)")
         
-        // 사용자에게 이미 캠퍼스 정보가 있으면 바로 메인화면으로
-        if !user.campus.rawValue.isEmpty {
-            print("✅ 기존 캠퍼스 정보 발견: \(user.campus.displayName)")
-            navigateToMainMenuWithCampus(user.campus)
-        } else {
-            print("❓ 캠퍼스 정보 없음, 캠퍼스 선택 화면으로 이동")
-            navigateToCampusSelection()
-        }
-    }
-    
-    // MARK: - Campus Selection Completion
-    func completeCampusSelection(_ campus: Campus) {
-        print("🧭 Coordinator: 캠퍼스 선택 완료 - \(campus.displayName)")
-        withAnimation(transitionAnimation) {
-            currentRoute = .mainMenu
-        }
+        // 모든 사용자는 바로 메인화면으로 이동
+        print("✅ 사용자 인증 완료, 메인화면으로 이동")
+        navigateToMainMenuWithCampus(user.campus)
     }
     
     // MARK: - Settings Navigation
@@ -104,13 +83,8 @@ class AppCoordinator: ObservableObject {
         print("🧭 Coordinator: 직접 인증 처리 - \(user.email)")
         
         // 즉시 메인화면으로 이동 (Apple 로그인 성공 시)
-        if !user.campus.rawValue.isEmpty {
-            print("✅ 직접 인증 성공, 메인화면으로 이동")
-            navigateToMainMenuWithCampus(user.campus)
-        } else {
-            print("❓ 캠퍼스 정보 없음, 캠퍼스 선택 화면으로 이동")
-            navigateToCampusSelection()
-        }
+        print("✅ 직접 인증 성공, 메인화면으로 이동")
+        navigateToMainMenuWithCampus(user.campus)
     }
     
     // MARK: - Animation Customization

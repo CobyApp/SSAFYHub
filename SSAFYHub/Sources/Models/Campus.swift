@@ -37,7 +37,7 @@ enum Campus: String, CaseIterable, Codable {
         case .daejeon:
             return "지원됨"
         default:
-            return "준비중 (추후 확정 예정)"
+            return "준비중 (추후 확장 예정)"
         }
     }
     
@@ -46,7 +46,7 @@ enum Campus: String, CaseIterable, Codable {
         case .daejeon:
             return "현재 지원되는 캠퍼스입니다."
         default:
-            return "현재 준비중이며, 추후 확정 예정입니다."
+            return "현재 준비중이며, 추후 확장 예정입니다."
         }
     }
     

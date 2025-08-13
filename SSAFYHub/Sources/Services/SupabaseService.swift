@@ -438,8 +438,8 @@ class SupabaseService: ObservableObject {
             updatedAt: Date()
         )
         
-        // 사용자 데이터 저장
-        try await upsertUser(guestUser)
+        // 게스트 사용자는 데이터베이스에 저장하지 않음 (로컬에서만 관리)
+        print("ℹ️ 게스트 사용자는 데이터베이스에 저장하지 않음")
         
         // 가상 세션 생성 (게스트용)
         let virtualSession = createVirtualSession(for: guestUser)

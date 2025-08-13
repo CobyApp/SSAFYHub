@@ -3,8 +3,6 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var appCoordinator: AppCoordinator
-
-    @Environment(\.dismiss) private var dismiss
     
     @State private var showingLogoutAlert = false
     @State private var showingDeleteAccountAlert = false
@@ -24,6 +22,13 @@ struct SettingsView: View {
                         accountSection
                     }
                     
+                    // 게스트 모드 섹션 (게스트 사용자만 표시)
+                    if let currentUser = authViewModel.currentUser {
+                        if currentUser.isGuest {
+                            guestSection
+                        }
+                    }
+                    
                     // 앱 정보 섹션
                     appInfoSection
                 }
@@ -31,13 +36,12 @@ struct SettingsView: View {
             }
             .background(AppColors.backgroundPrimary)
         }
-
         .alert("로그아웃", isPresented: $showingLogoutAlert) {
             Button("취소", role: .cancel) { }
             Button("로그아웃", role: .destructive) {
                 Task {
                     await authViewModel.signOut()
-                    dismiss()
+                    appCoordinator.navigateBackFromSettings()
                 }
             }
         } message: {
@@ -58,39 +62,23 @@ struct SettingsView: View {
     // MARK: - Custom Header
     private var customHeader: some View {
         VStack(spacing: 0) {
+            // 상단 뒤로가기 버튼
             HStack {
                 Button(action: {
                     appCoordinator.navigateBackFromSettings()
                 }) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(AppColors.primary)
+                        .foregroundColor(AppColors.textSecondary)
                         .frame(width: 44, height: 44)
                         .background(Color(.tertiarySystemBackground))
                         .cornerRadius(22)
                 }
                 
                 Spacer()
-                
-                Text("설정")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundColor(AppColors.textPrimary)
-                
-                Spacer()
-                
-                Button(action: {
-                    appCoordinator.navigateBackFromSettings()
-                }) {
-                    Text("완료")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AppColors.primary)
-                        .frame(width: 44, height: 44)
-                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 10)
-            .padding(.bottom, 20)
-            .background(AppColors.backgroundPrimary)
         }
     }
     
@@ -102,104 +90,65 @@ struct SettingsView: View {
                 .foregroundColor(AppColors.textPrimary)
             
             VStack(spacing: AppSpacing.sm) {
-                // 현재 선택된 캠퍼스 표시
-                if let currentUser = authViewModel.currentUser {
-                    HStack {
-                        Image(systemName: "location.circle.fill")
-                            .foregroundColor(AppColors.primary)
-                            .frame(width: 24)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("현재 캠퍼스")
-                                .font(AppTypography.body)
-                                .foregroundColor(AppColors.textPrimary)
+                ForEach(Campus.allCases, id: \.self) { campus in
+                    Button(action: {
+                        if campus.isAvailable {
+                            Task {
+                                await changeUserCampus(to: campus)
+                            }
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: campus.isAvailable ? "building.2.fill" : "clock.circle.fill")
+                                .foregroundColor(campus.isAvailable ? AppColors.primary : AppColors.disabled)
+                                .frame(width: 24)
                             
-                            Text(currentUser.campus.displayName)
-                                .font(AppTypography.headline)
-                                .foregroundColor(AppColors.primary)
-                        }
-                        
-                        Spacer()
-                        
-                        Text("선택됨")
-                            .font(AppTypography.caption1)
-                            .foregroundColor(AppColors.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .background(AppColors.primary.opacity(0.1))
-                            .cornerRadius(AppCornerRadius.small)
-                    }
-                    .padding(AppSpacing.md)
-                    .background(AppColors.primary.opacity(0.05))
-                    .cornerRadius(AppCornerRadius.medium)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: AppCornerRadius.medium)
-                            .stroke(AppColors.primary.opacity(0.3), lineWidth: 1)
-                    )
-                }
-                
-                // 캠퍼스 선택 옵션
-                VStack(spacing: AppSpacing.sm) {
-                    ForEach(Campus.allCases, id: \.self) { campus in
-                        Button(action: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(campus.displayName)
+                                    .font(AppTypography.body)
+                                    .foregroundColor(campus.isAvailable ? AppColors.textPrimary : AppColors.textSecondary)
+                                
+                                Text(campus.isAvailable ? "클릭하여 선택" : "준비중 (추후 확장 예정)")
+                                    .font(AppTypography.caption1)
+                                    .foregroundColor(AppColors.textSecondary)
+                            }
+                            
+                            Spacer()
+                            
                             if campus.isAvailable {
-                                Task {
-                                    await changeUserCampus(to: campus)
-                                }
-                            }
-                        }) {
-                            HStack {
-                                Image(systemName: campus.isAvailable ? "building.2.fill" : "clock.circle.fill")
-                                    .foregroundColor(campus.isAvailable ? AppColors.primary : AppColors.disabled)
-                                    .frame(width: 24)
-                                
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(campus.displayName)
-                                        .font(AppTypography.body)
-                                        .foregroundColor(campus.isAvailable ? AppColors.textPrimary : AppColors.textSecondary)
-                                    
-                                    Text(campus.isAvailable ? "클릭하여 선택" : "준비중 (추후 확정 예정)")
-                                        .font(AppTypography.caption1)
-                                        .foregroundColor(campus.isAvailable ? AppColors.textSecondary : AppColors.textSecondary)
-                                }
-                                
-                                Spacer()
-                                
-                                if campus.isAvailable {
-                                    if let currentUser = authViewModel.currentUser, currentUser.campus == campus {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(AppColors.success)
-                                            .font(.system(size: 20))
-                                    } else {
-                                        Image(systemName: "chevron.right")
-                                            .foregroundColor(AppColors.primary)
-                                            .font(.system(size: 16))
-                                    }
+                                if let currentUser = authViewModel.currentUser, currentUser.campus == campus {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(AppColors.success)
+                                        .font(.system(size: 20))
                                 } else {
-                                    Text("준비중")
-                                        .font(AppTypography.caption1)
-                                        .foregroundColor(AppColors.textSecondary)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 4)
-                                        .background(AppColors.disabled.opacity(0.1))
-                                        .cornerRadius(AppCornerRadius.small)
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(AppColors.primary)
+                                        .font(.system(size: 16))
                                 }
+                            } else {
+                                Text("준비중")
+                                    .font(AppTypography.caption1)
+                                    .foregroundColor(AppColors.textSecondary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 4)
+                                    .background(AppColors.disabled.opacity(0.1))
+                                    .cornerRadius(AppCornerRadius.small)
                             }
-                            .padding(AppSpacing.md)
-                            .background(
-                                RoundedRectangle(cornerRadius: AppCornerRadius.medium)
-                                    .fill(campus.isAvailable ? AppColors.backgroundSecondary : AppColors.backgroundSecondary.opacity(0.5))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: AppCornerRadius.medium)
-                                    .stroke(
-                                        campus.isAvailable ? AppColors.border : AppColors.disabled.opacity(0.3), 
-                                        lineWidth: 1
-                                    )
-                            )
                         }
-                        .disabled(!campus.isAvailable)
+                        .padding(AppSpacing.md)
+                        .background(
+                            RoundedRectangle(cornerRadius: AppCornerRadius.medium)
+                                .fill(campus.isAvailable ? AppColors.backgroundSecondary : AppColors.backgroundSecondary.opacity(0.5))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppCornerRadius.medium)
+                                .stroke(
+                                    campus.isAvailable ? AppColors.border : AppColors.disabled.opacity(0.3), 
+                                    lineWidth: 1
+                                )
+                        )
                     }
+                    .disabled(!campus.isAvailable)
                 }
             }
         }
@@ -235,15 +184,10 @@ struct SettingsView: View {
         
         print("🗑️ 회원탈퇴 시작: \(currentUser.email)")
         
-        do {
-            // AuthViewModel을 통해 회원탈퇴
-            await authViewModel.deleteAccount()
-            dismiss()
-            print("✅ 회원탈퇴 완료")
-        } catch {
-            print("❌ 회원탈퇴 실패: \(error)")
-            // TODO: 에러 알림 추가
-        }
+        // AuthViewModel을 통해 회원탈퇴
+        await authViewModel.deleteAccount()
+        appCoordinator.navigateBackFromSettings()
+        print("✅ 회원탈퇴 완료")
     }
     
     // MARK: - Account Section
@@ -305,8 +249,8 @@ struct SettingsView: View {
         }
     }
     
-    // MARK: - Guest Exit Section
-    private var guestExitSection: some View {
+    // MARK: - Guest Section
+    private var guestSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Text("게스트 모드")
                 .font(AppTypography.title3)
@@ -317,7 +261,6 @@ struct SettingsView: View {
                     // 게스트 모드 종료 후 회원가입 화면으로 이동
                     Task {
                         await authViewModel.signOut()
-                        dismiss()
                         // AppCoordinator를 통해 회원가입 화면으로 이동
                         await MainActor.run {
                             appCoordinator.navigateToAuth()

@@ -143,33 +143,32 @@ class AuthViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        do {
-            // 1. SupabaseService를 통해 게스트 사용자 생성
-            let guestUser = try await supabaseService.signInAsGuest(campus: campus)
-            
-            print("👤 게스트 사용자 생성됨: \(guestUser)")
-            print("🔄 authState 업데이트 시작")
-            
-            // 2. authState 업데이트
-            await MainActor.run {
-                let oldState = authState
-                authState = .authenticated(guestUser)
-                print("✅ authState 업데이트 완료")
-                print("📱 이전 상태: \(oldState)")
-                print("📱 새로운 상태: \(authState)")
-            }
-            
-            print("✅ signInAsGuest 완료")
-        } catch {
-            print("❌ signInAsGuest 오류: \(error)")
-            errorMessage = "게스트 로그인에 실패했습니다: \(error.localizedDescription)"
-            
-            // 에러 발생 시 인증 상태를 unauthenticated로 설정
-            await MainActor.run {
-                authState = .unauthenticated
-            }
+        // 게스트 사용자를 로컬에서 직접 생성 (데이터베이스 저장 없음)
+        let guestUser = User(
+            id: UUID().uuidString,
+            email: "guest@ssafyhub.com",
+            campus: campus,
+            userType: .guest,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        
+        print("👤 게스트 사용자 생성됨: \(guestUser)")
+        print("🔄 authState 업데이트 시작")
+        
+        // authState 업데이트
+        await MainActor.run {
+            let oldState = authState
+            authState = .authenticated(guestUser)
+            print("✅ authState 업데이트 완료")
+            print("📱 이전 상태: \(oldState)")
+            print("📱 새로운 상태: \(authState)")
         }
         
+        // 게스트 사용자 세션을 로컬에 저장
+        await supabaseService.saveUserSession(guestUser)
+        
+        print("✅ signInAsGuest 완료")
         isLoading = false
         print("🏁 signInAsGuest 종료")
     }

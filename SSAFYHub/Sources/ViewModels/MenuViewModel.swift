@@ -30,22 +30,50 @@ class MenuViewModel: ObservableObject {
     // MARK: - Date Navigation
     func goToNextDay() {
         let calendar = Calendar.current
-        if let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) {
-            // 시간을 제거하고 날짜만 설정
-            currentDate = calendar.startOfDay(for: nextDate)
-            print("📅 다음 날로 이동: \(currentDate)")
-            loadMenuForCurrentDate()
-        }
+        var nextDate = currentDate
+        
+        // 다음 평일 찾기 (토요일, 일요일 건너뛰기)
+        repeat {
+            if let tempDate = calendar.date(byAdding: .day, value: 1, to: nextDate) {
+                nextDate = tempDate
+                let weekday = calendar.component(.weekday, from: nextDate)
+                // weekday: 1=일요일, 2=월요일, ..., 7=토요일
+                if weekday != 1 && weekday != 7 { // 일요일과 토요일이 아닌 경우
+                    break
+                }
+            } else {
+                return
+            }
+        } while true
+        
+        // 시간을 제거하고 날짜만 설정
+        currentDate = calendar.startOfDay(for: nextDate)
+        print("📅 다음 평일로 이동: \(currentDate)")
+        loadMenuForCurrentDate()
     }
     
     func goToPreviousDay() {
         let calendar = Calendar.current
-        if let previousDate = calendar.date(byAdding: .day, value: -1, to: currentDate) {
-            // 시간을 제거하고 날짜만 설정
-            currentDate = calendar.startOfDay(for: previousDate)
-            print("📅 이전 날로 이동: \(currentDate)")
-            loadMenuForCurrentDate()
-        }
+        var previousDate = currentDate
+        
+        // 이전 평일 찾기 (토요일, 일요일 건너뛰기)
+        repeat {
+            if let tempDate = calendar.date(byAdding: .day, value: -1, to: previousDate) {
+                previousDate = tempDate
+                let weekday = calendar.component(.weekday, from: previousDate)
+                // weekday: 1=일요일, 2=월요일, ..., 7=토요일
+                if weekday != 1 && weekday != 7 { // 일요일과 토요일이 아닌 경우
+                    break
+                }
+            } else {
+                return
+            }
+        } while true
+        
+        // 시간을 제거하고 날짜만 설정
+        currentDate = calendar.startOfDay(for: previousDate)
+        print("📅 이전 평일로 이동: \(currentDate)")
+        loadMenuForCurrentDate()
     }
     
     func loadTodayMenu() {

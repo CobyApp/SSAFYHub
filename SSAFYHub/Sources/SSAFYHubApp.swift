@@ -17,10 +17,6 @@ struct SSAFYHubApp: App {
                             // Coordinator 연결
                             authViewModel.setCoordinator(appCoordinator)
                         }
-                case .campusSelection:
-                    CampusSelectionView()
-                        .environmentObject(authViewModel)
-                        .environmentObject(appCoordinator)
                 case .mainMenu:
                     MainMenuView()
                         .environmentObject(authViewModel)
@@ -75,13 +71,8 @@ struct SSAFYHubApp: App {
                         print("✅ 앱 시작 시 저장된 사용자 세션으로 로그인 복구: \(savedUser.email)")
                         authViewModel.authState = .authenticated(savedUser)
                         
-                        if !savedUser.campus.rawValue.isEmpty {
-                            print("🏫 기존 캠퍼스 정보: \(savedUser.campus.displayName)")
-                            appCoordinator.navigateToMainMenuWithCampus(savedUser.campus)
-                        } else {
-                            print("❓ 캠퍼스 정보 없음, 캠퍼스 선택 화면으로")
-                            appCoordinator.navigateToCampusSelection()
-                        }
+                                            print("🏫 기존 캠퍼스 정보: \(savedUser.campus.displayName)")
+                    appCoordinator.navigateToMainMenuWithCampus(savedUser.campus)
                     }
                     return
                 }
@@ -104,13 +95,8 @@ struct SSAFYHubApp: App {
                         print("✅ 앱 시작 시 Supabase 세션으로 로그인 발견: \(userData.email)")
                         authViewModel.authState = .authenticated(userData)
                         
-                        if !userData.campus.rawValue.isEmpty {
-                            print("🏫 기존 캠퍼스 정보: \(userData.campus.displayName)")
-                            appCoordinator.navigateToMainMenuWithCampus(userData.campus)
-                        } else {
-                            print("❓ 캠퍼스 정보 없음, 캠퍼스 선택 화면으로")
-                            appCoordinator.navigateToCampusSelection()
-                        }
+                        print("🏫 기존 캠퍼스 정보: \(userData.campus.displayName)")
+                        appCoordinator.navigateToMainMenuWithCampus(userData.campus)
                     }
                 } catch {
                     print("🔍 SSAFYHubApp: Supabase 세션 없음, 수동 세션 복구 시도")
@@ -130,13 +116,8 @@ struct SSAFYHubApp: App {
                             print("✅ 앱 시작 시 수동 세션 복구로 로그인 발견: \(userData.email)")
                             authViewModel.authState = .authenticated(userData)
                             
-                            if !userData.campus.rawValue.isEmpty {
-                                print("🏫 기존 캠퍼스 정보: \(userData.campus.displayName)")
-                                appCoordinator.navigateToMainMenuWithCampus(userData.campus)
-                            } else {
-                                print("❓ 캠퍼스 정보 없음, 캠퍼스 선택 화면으로")
-                                appCoordinator.navigateToCampusSelection()
-                            }
+                                                    print("🏫 기존 캠퍼스 정보: \(userData.campus.displayName)")
+                        appCoordinator.navigateToMainMenuWithCampus(userData.campus)
                         }
                         return
                     }

@@ -77,7 +77,10 @@ struct AuthView: View {
                     
                     // 게스트 모드 버튼
                     Button(action: {
-                        appCoordinator.navigateToCampusSelection()
+                        Task {
+                            // 게스트로 바로 로그인하여 메인화면으로 이동
+                            await authViewModel.signInAsGuest(campus: .daejeon)
+                        }
                     }) {
                         HStack(spacing: 8) {
                             Image(systemName: "person.badge.plus")
