@@ -97,7 +97,7 @@ let project = Project(
                 ]
             ]),
             sources: ["SSAFYHubWidget/Sources/**"],
-            resources: ["SSAFYHubWidget/Resources/**"],
+            resources: [],
             entitlements: "SSAFYHubWidget/SSAFYHubWidget.entitlements",
             dependencies: [
                 .target(name: "SharedModels"),

@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import SharedModels
 
 @main
 struct SSAFYHubWidgetBundle: WidgetBundle {

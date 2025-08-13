@@ -3,7 +3,7 @@ import Foundation
 class WidgetDataService {
     static let shared = WidgetDataService()
     
-    private let userDefaults = UserDefaults(suiteName: "group.com.coby")
+    private let userDefaults = UserDefaults(suiteName: "group.com.coby.ssafyhub")
     
     private init() {}
     

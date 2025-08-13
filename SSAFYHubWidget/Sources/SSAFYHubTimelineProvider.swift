@@ -4,7 +4,7 @@ import SharedModels
 
 struct SSAFYHubTimelineEntry: TimelineEntry {
     let date: Date
-    let menu: Menu?
+    let menu: SharedModels.Menu?
 }
 
 struct SSAFYHubTimelineProvider: TimelineProvider {
@@ -69,12 +69,12 @@ struct SSAFYHubTimelineProvider: TimelineProvider {
         completion(timeline)
     }
     
-    private func getCurrentMenu() -> Menu? {
+    private func getCurrentMenu() -> SharedModels.Menu? {
         // UserDefaults를 통해 메인 앱과 데이터 공유
-        let userDefaults = UserDefaults(suiteName: "group.com.coby")
+        let userDefaults = UserDefaults(suiteName: "group.com.coby.ssafyhub")
         
         guard let menuData = userDefaults?.data(forKey: "currentMenu"),
-              let menu = try? JSONDecoder().decode(Menu.self, from: menuData) else {
+              let menu = try? JSONDecoder().decode(SharedModels.Menu.self, from: menuData) else {
             return nil
         }
         
