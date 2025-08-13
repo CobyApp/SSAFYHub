@@ -54,7 +54,8 @@ let project = Project(
             entitlements: "SSAFYHub/SSAFYHub.entitlements",
             dependencies: [
                 .target(name: "SharedModels"),
-                .external(name: "Supabase")
+                .external(name: "Supabase"),
+                .target(name: "SSAFYHubWidget")
             ],
             settings: .settings(
                 base: [
@@ -92,12 +93,20 @@ let project = Project(
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "SSAFYHub 위젯",
                 "CFBundleName": "SSAFYHub 위젯",
+                "CFBundleVersion": "1",
+                "CFBundleShortVersionString": "1.0",
+                "CFBundlePackageType": "XPC!",
+                "CFBundleInfoDictionaryVersion": "6.0",
                 "NSExtension": [
                     "NSExtensionPointIdentifier": "com.apple.widgetkit-extension"
-                ]
+                ],
+                "NSWidgetWantsLocation": false,
+                "NSWidgetAllowsEditing": true,
+                "NSWidgetDisplayMode": "Expanded",
+                "NSWidgetSupportedFamilies": ["com.apple.widget.system.small", "com.apple.widget.system.medium"]
             ]),
             sources: ["SSAFYHubWidget/Sources/**"],
-            resources: [],
+            resources: ["SSAFYHubWidget/Resources/**"],
             entitlements: "SSAFYHubWidget/SSAFYHubWidget.entitlements",
             dependencies: [
                 .target(name: "SharedModels"),
@@ -111,7 +120,12 @@ let project = Project(
                     "SUPPORTED_PLATFORMS": "iphoneos",
                     "SUPPORTS_MACCATALYST": "NO",
                     "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "NO",
-                    "CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION": "YES"
+                    "CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION": "YES",
+                    "APPLICATION_EXTENSION_API_ONLY": "YES",
+                    "ENABLE_BITCODE": "NO",
+                    "SWIFT_VERSION": "5.0",
+                    "CLANG_ENABLE_MODULES": "YES",
+                    "DEFINES_MODULE": "YES"
                 ]
             )
         ),

@@ -1,4 +1,5 @@
 import Foundation
+import WidgetKit
 
 class WidgetDataService {
     static let shared = WidgetDataService()
@@ -14,7 +15,11 @@ class WidgetDataService {
             userDefaults?.set(menuData, forKey: "currentMenu")
             userDefaults?.synchronize()
             
+            // 위젯 업데이트 강제 요청
+            WidgetCenter.shared.reloadAllTimelines()
+            
             print("📱 위젯에 메뉴 데이터 공유 완료: \(menu.date)")
+            print("🔄 위젯 업데이트 요청 완료")
         } catch {
             print("❌ 위젯 데이터 공유 실패: \(error)")
         }
@@ -39,6 +44,11 @@ class WidgetDataService {
     func clearWidgetData() {
         userDefaults?.removeObject(forKey: "currentMenu")
         userDefaults?.synchronize()
+        
+        // 위젯 업데이트 강제 요청
+        WidgetCenter.shared.reloadAllTimelines()
+        
         print("📱 위젯 데이터 초기화 완료")
+        print("🔄 위젯 업데이트 요청 완료")
     }
 }
