@@ -43,7 +43,7 @@ struct MainMenuView: View {
                     
                     Spacer(minLength: 20)
                 }
-                .background(Color(.systemBackground))
+                .background(AppColors.backgroundPrimary)
             }
 
             .gesture(
@@ -130,8 +130,8 @@ struct MainMenuView: View {
                         .font(.system(size: 18, weight: .medium))
                         .foregroundColor(AppColors.textSecondary)
                         .frame(width: 40, height: 40)
-                        .background(Color(.tertiarySystemBackground))
-                        .cornerRadius(20)
+                                        .background(AppColors.backgroundTertiary)
+                .cornerRadius(20)
                 }
             }
             .padding(.horizontal, 20)
@@ -150,7 +150,7 @@ struct MainMenuView: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(AppColors.primary)
                         .frame(width: 32, height: 32)
-                        .background(Color(.tertiarySystemBackground))
+                        .background(AppColors.backgroundTertiary)
                         .cornerRadius(16)
                 }
                 
@@ -182,7 +182,7 @@ struct MainMenuView: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(AppColors.primary)
                         .frame(width: 32, height: 32)
-                        .background(Color(.tertiarySystemBackground))
+                        .background(AppColors.backgroundTertiary)
                         .cornerRadius(16)
                 }
             }
@@ -296,7 +296,7 @@ struct MainMenuView: View {
             .padding(.leading, 8)
         }
         .padding(20)
-        .background(Color(.secondarySystemBackground))
+        .background(AppColors.backgroundSecondary)
         .cornerRadius(16)
     }
     
@@ -320,7 +320,7 @@ struct MainMenuView: View {
             }
         }
         .padding(20)
-        .background(Color(.secondarySystemBackground))
+        .background(AppColors.backgroundSecondary)
         .cornerRadius(16)
     }
     
@@ -443,17 +443,17 @@ struct MainMenuView: View {
                         HStack(spacing: 12) {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(AppColors.backgroundPrimary)
                             
                             Text("메뉴 등록하기")
                                 .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                .foregroundColor(.white)
+                                .foregroundColor(AppColors.backgroundPrimary)
                             
                             Spacer()
                             
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(AppColors.backgroundPrimary)
                         }
                         .padding(20)
                         .background(AppColors.primary)
@@ -468,17 +468,17 @@ struct MainMenuView: View {
                         HStack(spacing: 12) {
                             Image(systemName: "arrow.left.circle.fill")
                                 .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(AppColors.backgroundPrimary)
                             
                             Text("게스트 모드 나가기")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(AppColors.backgroundPrimary)
                             
                             Spacer()
                             
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(AppColors.backgroundPrimary)
                         }
                         .padding(20)
                         .background(AppColors.error)

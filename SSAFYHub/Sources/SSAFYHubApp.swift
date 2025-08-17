@@ -4,6 +4,8 @@ import SwiftUI
 struct SSAFYHubApp: App {
     @StateObject private var authViewModel = AuthViewModel()
     @StateObject private var appCoordinator = AppCoordinator()
+    @StateObject private var themeManager = ThemeManager()
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some Scene {
         WindowGroup {
@@ -13,10 +15,12 @@ struct SSAFYHubApp: App {
                     LoadingView()
                         .environmentObject(authViewModel)
                         .environmentObject(appCoordinator)
+                        .environmentObject(themeManager)
                 case .auth:
                     AuthView()
                         .environmentObject(authViewModel)
                         .environmentObject(appCoordinator)
+                        .environmentObject(themeManager)
                         .onAppear {
                             // Coordinator 연결
                             authViewModel.setCoordinator(appCoordinator)
@@ -25,10 +29,12 @@ struct SSAFYHubApp: App {
                     MainMenuView()
                         .environmentObject(authViewModel)
                         .environmentObject(appCoordinator)
+                        .environmentObject(themeManager)
                 case .settings:
                     SettingsView()
                         .environmentObject(authViewModel)
                         .environmentObject(appCoordinator)
+                        .environmentObject(themeManager)
                 }
             }
             .animation(.easeInOut, value: appCoordinator.currentRoute)
@@ -57,6 +63,10 @@ struct SSAFYHubApp: App {
                 // 앱 시작 시 로그인 상태 확인
                 print("🚀 앱 시작 - 로그인 상태 확인")
                 checkInitialAuthState()
+            }
+            .onChange(of: colorScheme) { oldValue, newValue in
+                // 시스템 테마 변경 감지
+                themeManager.systemThemeChanged()
             }
         }
     }

@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import SharedModels
 
 struct SSAFYHubATypeWidget: Widget {
     let kind: String = "SSAFYHubATypeWidget"
@@ -44,7 +45,7 @@ struct SSAFYHubATypeWidgetEntryView: View {
         .padding()
         .containerBackground(for: .widget) {
             // A타입: 파란색 배경
-            Color(red: 0.2, green: 0.6, blue: 1.0)
+            Color.widgetABackground
         }
     }
 }

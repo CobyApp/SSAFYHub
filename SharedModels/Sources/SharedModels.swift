@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 // MARK: - Campus Model
 public enum Campus: String, Codable, CaseIterable {
@@ -323,6 +324,13 @@ public struct DailyMealMenu: Codable {
         self.itemsA = itemsA
         self.itemsB = itemsB
     }
+}
+
+// MARK: - Widget Colors
+public struct WidgetColors {
+    // 위젯 전용 색상 (고정 색상)
+    public static let widgetABackground = Color(red: 0.2, green: 0.6, blue: 1.0)  // A타입: 파란색
+    public static let widgetBBackground = Color(red: 0.2, green: 0.8, blue: 0.4)  // B타입: 초록색
 }
 
 // MARK: - Auth State

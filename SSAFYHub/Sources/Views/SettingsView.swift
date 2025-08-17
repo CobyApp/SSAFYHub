@@ -71,7 +71,7 @@ struct SettingsView: View {
                         .font(.system(size: 20, weight: .medium))
                         .foregroundColor(AppColors.textSecondary)
                         .frame(width: 44, height: 44)
-                        .background(Color(.tertiarySystemBackground))
+                        .background(AppColors.backgroundTertiary)
                         .cornerRadius(22)
                 }
                 
@@ -265,12 +265,12 @@ struct SettingsView: View {
                 }) {
                     HStack {
                         Image(systemName: "arrow.left.circle.fill")
-                            .foregroundColor(AppColors.primary)
+                            .foregroundColor(AppColors.error)
                             .frame(width: 24)
                         
                         Text("게스트 모드 나가기")
                             .font(AppTypography.body)
-                            .foregroundColor(AppColors.primary)
+                            .foregroundColor(AppColors.error)
                         
                         Spacer()
                         

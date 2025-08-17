@@ -1,5 +1,12 @@
 import WidgetKit
 import SwiftUI
+import SharedModels
+
+// 위젯 전용 색상 정의
+extension Color {
+    static let widgetABackground = Color(red: 0.2, green: 0.6, blue: 1.0)  // A타입: 파란색
+    static let widgetBBackground = Color(red: 0.2, green: 0.8, blue: 0.4)  // B타입: 초록색
+}
 
 struct SSAFYHubBTypeWidget: Widget {
     let kind: String = "SSAFYHubBTypeWidget"
@@ -44,7 +51,7 @@ struct SSAFYHubBTypeWidgetEntryView: View {
         .padding()
         .containerBackground(for: .widget) {
             // B타입: 초록색 배경
-            Color(red: 0.2, green: 0.8, blue: 0.4)
+            Color.widgetBBackground
         }
     }
 }
