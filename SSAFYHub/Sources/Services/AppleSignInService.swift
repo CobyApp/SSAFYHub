@@ -1,9 +1,12 @@
 import Foundation
 import AuthenticationServices
+import KeychainAccess
 
 @MainActor
 class AppleSignInService: NSObject, ObservableObject, Sendable {
     static let shared = AppleSignInService()
+    
+    private let keychain = Keychain(service: "com.coby.ssafyhub.apple")
     
     private override init() {
         super.init()
@@ -42,5 +45,27 @@ class AppleSignInService: NSObject, ObservableObject, Sendable {
                 throw error
             }
         }
+    }
+    
+    // MARK: - Apple 사용자 정보 키체인 관리
+    func saveAppleUserInfo(userID: String, email: String?, fullName: String?) {
+        keychain["userID"] = userID
+        keychain["email"] = email
+        keychain["fullName"] = fullName
+        print("🔑 Apple 사용자 정보 키체인 저장 완료")
+    }
+    
+    func getAppleUserInfo() -> (userID: String?, email: String?, fullName: String?) {
+        let userID = keychain["userID"]
+        let email = keychain["email"]
+        let fullName = keychain["fullName"]
+        return (userID, email, fullName)
+    }
+    
+    func clearAppleUserInfo() {
+        try? keychain.remove("userID")
+        try? keychain.remove("email")
+        try? keychain.remove("fullName")
+        print("🗑️ Apple 사용자 정보 키체인 정리 완료")
     }
 }

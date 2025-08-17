@@ -225,6 +225,13 @@ class AuthViewModel: ObservableObject {
             let authenticatedUser = try await supabaseService.authenticateWithApple(identityToken: identityToken)
             print("🔐 Supabase 인증 성공: \(authenticatedUser.email)")
             
+            // Apple 사용자 정보를 키체인에 저장 (TestFlight에서 중요!)
+            AppleSignInService.shared.saveAppleUserInfo(
+                userID: authenticatedUser.id,
+                email: authenticatedUser.email,
+                fullName: nil // Apple에서 제공하지 않음
+            )
+            
             // 인증 상태 업데이트
             authState = .authenticated(authenticatedUser)
             
