@@ -109,26 +109,26 @@ struct MenuEditorView: View {
             permissionChecker.checkCameraPermission()
             permissionChecker.checkPhotoLibraryPermission()
             
-            // 현재 날짜로 주 시작일 초기화
+            // 전달받은 날짜로 주 시작일 초기화
             let calendar = Calendar.current
-            let today = Date()
-            let weekday = calendar.component(.weekday, from: today)
+            let targetDate = date
+            let weekday = calendar.component(.weekday, from: targetDate)
             
-            // 오늘이 주말이면 다음 주 월요일로, 평일이면 이번 주 월요일로 설정
+            // 해당 날짜가 포함된 주의 월요일을 찾기
             if weekday == 1 { // 일요일
                 // 다음 주 월요일
-                if let nextMonday = calendar.date(byAdding: .day, value: 1, to: today) {
+                if let nextMonday = calendar.date(byAdding: .day, value: 1, to: targetDate) {
                     selectedWeekStart = nextMonday
                 }
             } else if weekday == 7 { // 토요일
                 // 다음 주 월요일
-                if let nextMonday = calendar.date(byAdding: .day, value: 2, to: today) {
+                if let nextMonday = calendar.date(byAdding: .day, value: 2, to: targetDate) {
                     selectedWeekStart = nextMonday
                 }
             } else {
-                // 평일이면 이번 주 월요일
+                // 평일이면 해당 주의 월요일
                 let daysFromMonday = weekday - 2 // 월요일이면 0, 화요일이면 1, ...
-                if let monday = calendar.date(byAdding: .day, value: -daysFromMonday, to: today) {
+                if let monday = calendar.date(byAdding: .day, value: -daysFromMonday, to: targetDate) {
                     selectedWeekStart = monday
                 }
             }

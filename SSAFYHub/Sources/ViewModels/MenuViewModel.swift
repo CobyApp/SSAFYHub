@@ -18,8 +18,30 @@ class MenuViewModel: ObservableObject {
         
         // 현재 날짜를 시간 제거하고 설정
         let calendar = Calendar.current
-        currentDate = calendar.startOfDay(for: Date())
-        print("📅 MenuViewModel 초기화 - 현재 날짜: \(currentDate)")
+        let today = Date()
+        let weekday = calendar.component(.weekday, from: today)
+        
+        // 주말이면 가장 가까운 월요일로 설정
+        if weekday == 1 { // 일요일
+            // 다음 주 월요일
+            if let nextMonday = calendar.date(byAdding: .day, value: 1, to: today) {
+                currentDate = calendar.startOfDay(for: nextMonday)
+            } else {
+                currentDate = calendar.startOfDay(for: today)
+            }
+        } else if weekday == 7 { // 토요일
+            // 다음 주 월요일
+            if let nextMonday = calendar.date(byAdding: .day, value: 2, to: today) {
+                currentDate = calendar.startOfDay(for: nextMonday)
+            } else {
+                currentDate = calendar.startOfDay(for: today)
+            }
+        } else {
+            // 평일이면 오늘 날짜
+            currentDate = calendar.startOfDay(for: today)
+        }
+        
+        print("📅 MenuViewModel 초기화 - 설정된 날짜: \(currentDate)")
     }
     
     // MARK: - Initialization

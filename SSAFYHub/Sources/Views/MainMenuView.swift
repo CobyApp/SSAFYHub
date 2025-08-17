@@ -24,12 +24,22 @@ struct MainMenuView: View {
             
             ScrollView {
                 VStack(spacing: 0) {
-                    // 메뉴 컨텐츠
-                    if let menu = menuViewModel.currentMenu {
+                                    // 메뉴 컨텐츠
+                if let menu = menuViewModel.currentMenu {
+                    // 메뉴가 있지만 내용이 비어있는지 확인
+                    let hasMenuA = !menu.itemsA.isEmpty && !menu.itemsA.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    let hasMenuB = !menu.itemsB.isEmpty && !menu.itemsB.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    
+                    if hasMenuA || hasMenuB {
                         menuContentView(menu)
                     } else {
-                        emptyMenuView
+                        // 메뉴는 있지만 내용이 비어있음 - 버튼 없이 메시지만 표시
+                        noMenuContentView
                     }
+                } else {
+                    // 메뉴가 아예 없음 - 메뉴 등록하기 버튼 표시
+                    emptyMenuView
+                }
                     
                     Spacer(minLength: 20)
                 }
@@ -185,23 +195,14 @@ struct MainMenuView: View {
     // MARK: - Menu Content View
     private func menuContentView(_ menu: MealMenu) -> some View {
         VStack(spacing: 20) {
-            // A타입과 B타입이 모두 비어있는지 확인 (빈 문자열도 체크)
-            let hasMenuA = !menu.itemsA.isEmpty && !menu.itemsA.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            let hasMenuB = !menu.itemsB.isEmpty && !menu.itemsB.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            // A타입 메뉴
+            if !menu.itemsA.isEmpty && !menu.itemsA.allSatisfy({ $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                menuSection(title: "A타입", items: menu.itemsA, color: AppColors.primary)
+            }
             
-            if hasMenuA || hasMenuB {
-                // A타입 메뉴
-                if hasMenuA {
-                    menuSection(title: "A타입", items: menu.itemsA, color: AppColors.primary)
-                }
-                
-                // B타입 메뉴
-                if hasMenuB {
-                    menuSection(title: "B타입", items: menu.itemsB, color: AppColors.success)
-                }
-            } else {
-                // A타입과 B타입이 모두 비어있으면 메뉴 없음 표시
-                emptyMenuView
+            // B타입 메뉴
+            if !menu.itemsB.isEmpty && !menu.itemsB.allSatisfy({ $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                menuSection(title: "B타입", items: menu.itemsB, color: AppColors.success)
             }
             
             // 메뉴 수정 버튼 (인증된 사용자) 또는 게스트나가기 버튼 (게스트 사용자)
@@ -323,7 +324,92 @@ struct MainMenuView: View {
         .cornerRadius(16)
     }
     
-    // MARK: - Empty Menu View
+    // MARK: - No Menu Content View (메뉴는 있지만 내용이 비어있음)
+    private var noMenuContentView: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            
+            VStack(spacing: 16) {
+                Image(systemName: "fork.knife.circle")
+                    .font(.system(size: 60, weight: .light))
+                    .foregroundColor(AppColors.textTertiary)
+                
+                VStack(spacing: 8) {
+                    Text("메뉴 없음")
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundColor(AppColors.textPrimary)
+                    
+                    Text("오늘은 등록된 메뉴가 없습니다")
+                        .font(.system(size: 14, weight: .regular, design: .rounded))
+                        .foregroundColor(AppColors.textSecondary)
+                }
+            }
+            
+            // 메뉴 수정 버튼 (인증된 사용자) 또는 게스트나가기 버튼 (게스트 사용자)
+            if let currentUser = authViewModel.currentUser {
+                if currentUser.isAuthenticated {
+                    Button(action: { showMenuEditor = true }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "pencil.circle.fill")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(AppColors.primary)
+                            
+                            Text("메뉴 수정하기")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .foregroundColor(AppColors.primary)
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(AppColors.primary)
+                        }
+                        .padding(20)
+                        .background(AppColors.primary.opacity(0.1))
+                        .cornerRadius(16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(AppColors.primary.opacity(0.3), lineWidth: 1)
+                        )
+                    }
+                } else if currentUser.isGuest {
+                    Button(action: {
+                        Task {
+                            await authViewModel.exitGuestMode()
+                        }
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "arrow.left.circle.fill")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(AppColors.error)
+                            
+                            Text("게스트 모드 나가기")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(AppColors.error)
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(AppColors.error)
+                        }
+                        .padding(20)
+                        .background(AppColors.error.opacity(0.1))
+                        .cornerRadius(16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(AppColors.error.opacity(0.3), lineWidth: 1)
+                        )
+                    }
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+    }
+    
+    // MARK: - Empty Menu View (메뉴를 아직 등록하지 않음)
     private var emptyMenuView: some View {
         VStack(spacing: 24) {
             Spacer()
@@ -348,9 +434,58 @@ struct MainMenuView: View {
                             .foregroundColor(AppColors.textSecondary)
                     }
                 }
-            }
+                        }
             
-
+            // 메뉴 추가 버튼 (인증된 사용자) 또는 게스트나가기 버튼 (게스트 사용자)
+            if let currentUser = authViewModel.currentUser {
+                if currentUser.isAuthenticated {
+                    Button(action: { showMenuEditor = true }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(.white)
+                            
+                            Text("메뉴 등록하기")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .foregroundColor(.white)
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                        .padding(20)
+                        .background(AppColors.primary)
+                        .cornerRadius(16)
+                    }
+                } else if currentUser.isGuest {
+                    Button(action: {
+                        Task {
+                            await authViewModel.exitGuestMode()
+                        }
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "arrow.left.circle.fill")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(.white)
+                            
+                            Text("게스트 모드 나가기")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white)
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                        .padding(20)
+                        .background(AppColors.error)
+                        .cornerRadius(16)
+                    }
+                }
+            }
             
             Spacer()
         }
