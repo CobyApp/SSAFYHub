@@ -93,8 +93,8 @@ let project = Project(
             infoPlist: .extendingDefault(with: [
                 "CFBundleDisplayName": "SSAFYHub 위젯",
                 "CFBundleName": "SSAFYHub 위젯",
-                "CFBundleVersion": "1",
-                "CFBundleShortVersionString": "1.0",
+                "CFBundleVersion": "1.0.0",
+                "CFBundleShortVersionString": "1.0.0",
                 "CFBundlePackageType": "XPC!",
                 "CFBundleInfoDictionaryVersion": "6.0",
                 "NSExtension": [
