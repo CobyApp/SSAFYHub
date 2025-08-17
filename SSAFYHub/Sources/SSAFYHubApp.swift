@@ -37,7 +37,6 @@ struct SSAFYHubApp: App {
                         .environmentObject(themeManager)
                 }
             }
-            .animation(.easeInOut(duration: 0.5), value: appCoordinator.currentRoute)
             .onChange(of: authViewModel.authState) { oldValue, newValue in
                 print("🔄 SSAFYHubApp에서 authState 변경 감지")
                 print("📱 이전 상태: \(oldValue)")

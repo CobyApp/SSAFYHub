@@ -6,7 +6,6 @@ import SharedModels
 class AppCoordinator: ObservableObject {
     @Published var currentRoute: AppRoute = .auth
     @Published var navigationPath = NavigationPath()
-    @Published var transitionAnimation: Animation = .easeInOut(duration: 0.3)
     @Published var selectedCampus: Campus = .daejeon
     
     // MARK: - App Routes
@@ -29,32 +28,24 @@ class AppCoordinator: ObservableObject {
     // MARK: - Navigation Methods with Smart Logic
     func navigateToMainMenu() {
         print("🧭 Coordinator: 메인 메뉴 화면으로 이동")
-        withAnimation(transitionAnimation) {
-            currentRoute = .mainMenu
-        }
+        currentRoute = .mainMenu
     }
     
     func navigateToAuth() {
         print("🧭 Coordinator: 인증 화면으로 이동")
-        withAnimation(transitionAnimation) {
-            currentRoute = .auth
-        }
+        currentRoute = .auth
     }
     
     func resetToAuth() {
         print("🧭 Coordinator: 인증 화면으로 리셋")
-        withAnimation(transitionAnimation) {
-            currentRoute = .auth
-            navigationPath = NavigationPath()
-        }
+        currentRoute = .auth
+        navigationPath = NavigationPath()
     }
     
     // MARK: - Smart Navigation Methods
     func navigateToMainMenuWithCampus(_ campus: Campus) {
         print("🧭 Coordinator: 캠퍼스 \(campus.displayName)로 메인 메뉴 이동")
-        withAnimation(transitionAnimation) {
-            currentRoute = .mainMenu
-        }
+        currentRoute = .mainMenu
     }
     
     // MARK: - Smart Navigation for Existing Users
@@ -69,16 +60,12 @@ class AppCoordinator: ObservableObject {
     // MARK: - Settings Navigation
     func navigateToSettings() {
         print("🧭 Coordinator: 설정 화면으로 이동")
-        withAnimation(transitionAnimation) {
-            currentRoute = .settings
-        }
+        currentRoute = .settings
     }
     
     func navigateBackFromSettings() {
         print("🧭 Coordinator: 설정 화면에서 뒤로 이동")
-        withAnimation(transitionAnimation) {
-            currentRoute = .mainMenu
-        }
+        currentRoute = .mainMenu
     }
     
     // MARK: - Direct Navigation from Auth
@@ -89,30 +76,19 @@ class AppCoordinator: ObservableObject {
         print("✅ 직접 인증 성공, 메인화면으로 이동")
         navigateToMainMenuWithCampus(user.campus)
     }
-    
-    // MARK: - Animation Customization
-    func setTransitionAnimation(_ animation: Animation) {
-        transitionAnimation = animation
-    }
 }
 
 // MARK: - Navigation Path Extensions
 extension AppCoordinator {
     func push(_ route: AppRoute) {
-        withAnimation(transitionAnimation) {
-            navigationPath.append(route)
-        }
+        currentRoute = route
     }
     
     func pop() {
-        withAnimation(transitionAnimation) {
-            navigationPath.removeLast()
-        }
+        currentRoute = .auth
     }
     
     func popToRoot() {
-        withAnimation(transitionAnimation) {
-            navigationPath.removeLast(navigationPath.count)
-        }
+        currentRoute = .auth
     }
 }

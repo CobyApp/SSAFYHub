@@ -6,6 +6,7 @@ struct MainMenuView: View {
     @EnvironmentObject var appCoordinator: AppCoordinator
     @StateObject var menuViewModel = MenuViewModel()
     @State private var showMenuEditor = false
+    @State private var showSettings = false
 
     @State private var showGuestAccessAlert = false
     
@@ -18,54 +19,62 @@ struct MainMenuView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // 커스텀 헤더
-            headerView
-            
-            ScrollView {
-                VStack(spacing: 0) {
-                                    // 메뉴 컨텐츠
-                if let menu = menuViewModel.currentMenu {
-                    // 메뉴가 있지만 내용이 비어있는지 확인
-                    let hasMenuA = !menu.itemsA.isEmpty && !menu.itemsA.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                    let hasMenuB = !menu.itemsB.isEmpty && !menu.itemsB.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                    
-                    if hasMenuA || hasMenuB {
-                        menuContentView(menu)
+        NavigationStack {
+            VStack(spacing: 0) {
+                // 커스텀 헤더
+                headerView
+                
+                ScrollView {
+                    VStack(spacing: 0) {
+                                        // 메뉴 컨텐츠
+                    if let menu = menuViewModel.currentMenu {
+                        // 메뉴가 있지만 내용이 비어있는지 확인
+                        let hasMenuA = !menu.itemsA.isEmpty && !menu.itemsA.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                        let hasMenuB = !menu.itemsB.isEmpty && !menu.itemsB.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                        
+                        if hasMenuA || hasMenuB {
+                            menuContentView(menu)
+                        } else {
+                            // 메뉴는 있지만 내용이 비어있음 - 버튼 없이 메시지만 표시
+                            noMenuContentView
+                        }
                     } else {
-                        // 메뉴는 있지만 내용이 비어있음 - 버튼 없이 메시지만 표시
-                        noMenuContentView
+                        // 메뉴가 아예 없음 - 메뉴 등록하기 버튼 표시
+                        emptyMenuView
                     }
-                } else {
-                    // 메뉴가 아예 없음 - 메뉴 등록하기 버튼 표시
-                    emptyMenuView
+                        
+                        Spacer(minLength: 20)
+                    }
+                    .background(AppColors.backgroundPrimary)
                 }
-                    
-                    Spacer(minLength: 20)
-                }
-                .background(AppColors.backgroundPrimary)
-            }
 
-            .gesture(
-                DragGesture()
-                    .onEnded { value in
-                        let threshold: CGFloat = 50
-                        let translation = value.translation
-                        if translation.width > threshold {
-                            // 오른쪽으로 스와이프 - 이전 날짜
-                            print("👈 오른쪽 스와이프 - 이전 날짜로 이동")
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                menuViewModel.goToPreviousDay()
-                            }
-                        } else if translation.width < -threshold {
-                            // 왼쪽으로 스와이프 - 다음 날짜
-                            print("👉 왼쪽 스와이프 - 다음 날짜로 이동")
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                menuViewModel.goToNextDay()
+                .gesture(
+                    DragGesture()
+                        .onEnded { value in
+                            let threshold: CGFloat = 50
+                            let translation = value.translation
+                            if translation.width > threshold {
+                                // 오른쪽으로 스와이프 - 이전 날짜
+                                print("👈 오른쪽 스와이프 - 이전 날짜로 이동")
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    menuViewModel.goToPreviousDay()
+                                }
+                            } else if translation.width < -threshold {
+                                // 왼쪽으로 스와이프 - 다음 날짜
+                                print("👉 왼쪽 스와이프 - 다음 날짜로 이동")
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    menuViewModel.goToNextDay()
+                                }
                             }
                         }
-                    }
-            )
+                )
+            }
+            .navigationDestination(isPresented: $showSettings) {
+                SettingsView()
+                    .environmentObject(authViewModel)
+                    .environmentObject(appCoordinator)
+                    .navigationBarHidden(true)
+            }
         }
         .onAppear {
             if let currentUser = authViewModel.currentUser {
@@ -124,7 +133,7 @@ struct MainMenuView: View {
                 Spacer()
                 
                 Button(action: {
-                    appCoordinator.navigateToSettings()
+                    showSettings = true
                 }) {
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 18, weight: .medium))
