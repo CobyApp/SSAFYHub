@@ -21,8 +21,8 @@ struct SSAFYHubATypeWidgetEntryView: View {
         VStack {
             Spacer()
             
-            // 메뉴 내용만 표시
-            if let menu = entry.menu, !menu.itemsA.isEmpty {
+            // 메뉴 내용만 표시 (빈 문자열도 체크)
+            if let menu = entry.menu, !menu.itemsA.isEmpty && !menu.itemsA.allSatisfy({ $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(menu.itemsA, id: \.self) { item in
                         Text(item)
@@ -33,7 +33,7 @@ struct SSAFYHubATypeWidgetEntryView: View {
                     }
                 }
             } else {
-                Text("오늘은 A타입 메뉴가 없습니다")
+                Text("메뉴 없음")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.white.opacity(0.8))
                     .multilineTextAlignment(.center)

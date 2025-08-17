@@ -185,9 +185,9 @@ struct MainMenuView: View {
     // MARK: - Menu Content View
     private func menuContentView(_ menu: MealMenu) -> some View {
         VStack(spacing: 20) {
-            // A타입과 B타입이 모두 비어있는지 확인
-            let hasMenuA = !menu.itemsA.isEmpty
-            let hasMenuB = !menu.itemsB.isEmpty
+            // A타입과 B타입이 모두 비어있는지 확인 (빈 문자열도 체크)
+            let hasMenuA = !menu.itemsA.isEmpty && !menu.itemsA.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            let hasMenuB = !menu.itemsB.isEmpty && !menu.itemsB.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             
             if hasMenuA || hasMenuB {
                 // A타입 메뉴
@@ -200,8 +200,8 @@ struct MainMenuView: View {
                     menuSection(title: "B타입", items: menu.itemsB, color: AppColors.success)
                 }
             } else {
-                // A타입과 B타입이 모두 비어있으면 공휴일 표시
-                holidayView
+                // A타입과 B타입이 모두 비어있으면 메뉴 없음 표시
+                emptyMenuView
             }
             
             // 메뉴 수정 버튼 (인증된 사용자) 또는 게스트나가기 버튼 (게스트 사용자)
@@ -350,56 +350,7 @@ struct MainMenuView: View {
                 }
             }
             
-            // 메뉴 추가 버튼 (인증된 사용자) 또는 게스트나가기 버튼 (게스트 사용자)
-            if let currentUser = authViewModel.currentUser {
-                if currentUser.isAuthenticated {
-                    Button(action: { showMenuEditor = true }) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(.white)
-                            
-                            Text("이번주 메뉴 추가하기")
-                                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                                .foregroundColor(.white)
-                            
-                            Spacer()
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.white)
-                        }
-                        .padding(20)
-                        .background(AppColors.primary)
-                        .cornerRadius(16)
-                    }
-                } else if currentUser.isGuest {
-                    Button(action: {
-                        Task {
-                            await authViewModel.exitGuestMode()
-                        }
-                    }) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "arrow.left.circle.fill")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(.white)
-                            
-                            Text("게스트 모드 나가기")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.white)
-                            
-                            Spacer()
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.white)
-                        }
-                        .padding(20)
-                        .background(AppColors.error)
-                        .cornerRadius(16)
-                    }
-                }
-            }
+
             
             Spacer()
         }

@@ -43,43 +43,33 @@ struct SSAFYHubTimelineProvider: TimelineProvider {
         let currentDate = Date()
         let calendar = Calendar.current
         
+        // 오늘 날짜만 사용 (시간은 제거)
+        let today = calendar.startOfDay(for: currentDate)
+        
         // 현재 메뉴 데이터 가져오기
         let currentMenu = getCurrentMenu()
         
-        // 위젯 업데이트 시간 (매우 자주 업데이트)
+        // 위젯은 오늘 날짜로만 업데이트 (다른 날짜로 변경해도 반영하지 않음)
         let updateTimes: [Date] = [
-            currentDate, // 현재 시간
-            calendar.date(byAdding: .minute, value: 1, to: currentDate)!, // 1분 후
-            calendar.date(byAdding: .minute, value: 3, to: currentDate)!, // 3분 후
-            calendar.date(byAdding: .minute, value: 5, to: currentDate)!, // 5분 후
-            calendar.date(byAdding: .minute, value: 10, to: currentDate)!, // 10분 후
-            calendar.date(byAdding: .minute, value: 15, to: currentDate)!, // 15분 후
-            calendar.date(byAdding: .minute, value: 30, to: currentDate)!, // 30분 후
-            calendar.date(byAdding: .hour, value: 1, to: currentDate)!, // 1시간 후
-            calendar.date(byAdding: .hour, value: 2, to: currentDate)!, // 2시간 후
-            calendar.date(byAdding: .hour, value: 4, to: currentDate)!, // 4시간 후
-            calendar.date(byAdding: .hour, value: 6, to: currentDate)!, // 6시간 후
-            calendar.date(byAdding: .hour, value: 12, to: currentDate)!, // 12시간 후
-            calendar.date(byAdding: .day, value: 1, to: currentDate)! // 다음날
-        ].filter { $0 > currentDate }
+            today, // 오늘 시작
+            calendar.date(byAdding: .hour, value: 6, to: today)!, // 오전 6시
+            calendar.date(byAdding: .hour, value: 12, to: today)!, // 오후 12시
+            calendar.date(byAdding: .hour, value: 18, to: today)!, // 오후 6시
+            calendar.date(byAdding: .day, value: 1, to: today)! // 다음날 (새로운 타임라인 시작)
+        ]
         
-        // 현재 시간의 엔트리도 포함
-        let currentEntry = SSAFYHubTimelineEntry(
-            date: currentDate,
-            menu: currentMenu
-        )
-        
-        let futureEntries = updateTimes.map { date in
+        // 모든 엔트리는 오늘 날짜의 메뉴를 사용
+        let allEntries = updateTimes.map { date in
             SSAFYHubTimelineEntry(
                 date: date,
                 menu: currentMenu
             )
         }
         
-        let allEntries = [currentEntry] + futureEntries
         let timeline = Timeline(entries: allEntries, policy: .atEnd)
         
-        print("📱 위젯 타임라인 생성: \(allEntries.count)개 엔트리")
+        print("📱 위젯 타임라인 생성: \(allEntries.count)개 엔트리 (오늘 날짜만)")
+        print("   - 오늘 날짜: \(today)")
         if let menu = currentMenu {
             print("   - 메뉴 데이터: \(menu.date), A타입 \(menu.itemsA.count)개, B타입 \(menu.itemsB.count)개")
             print("   - 메뉴 ID: \(menu.id)")
