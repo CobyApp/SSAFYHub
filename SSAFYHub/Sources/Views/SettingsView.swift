@@ -188,7 +188,13 @@ struct SettingsView: View {
         
         // AuthViewModel을 통해 회원탈퇴
         await authViewModel.deleteAccount()
-        appCoordinator.navigateBackFromSettings()
+        
+        // 회원탈퇴 성공/실패와 관계없이 로그인 화면으로 이동
+        // 실패 시에도 로그인 화면으로 가야 함
+        await MainActor.run {
+            appCoordinator.navigateToAuth()
+        }
+        
         print("✅ 회원탈퇴 완료")
     }
     

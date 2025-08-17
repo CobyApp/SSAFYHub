@@ -542,38 +542,82 @@ class SupabaseService: ObservableObject {
         }
         
         let userId = currentUser.id.uuidString
+        let userEmail = currentUser.email ?? "unknown"
         print("👤 삭제할 사용자 ID: \(userId)")
+        print("📧 삭제할 사용자 이메일: \(userEmail)")
         
         do {
-            // 1. 사용자가 작성한 메뉴 데이터 삭제
+            // 1. 사용자가 작성한 메뉴 데이터 삭제 (여러 조건으로 시도)
             print("🍽️ 사용자 메뉴 데이터 삭제 시작")
-            try await client.database
+            
+            // 먼저 해당 사용자의 메뉴가 있는지 확인
+            // updated_by 컬럼으로 사용자별 메뉴 필터링
+            let menuResponse = try await client.database
                 .from("menus")
-                .delete()
-                .eq("updated_by", value: currentUser.email ?? "unknown")
+                .select("id, updated_by")
+                .eq("updated_by", value: userEmail)
                 .execute()
-            print("✅ 사용자 메뉴 데이터 삭제 완료")
+            
+            let menuData = menuResponse.data
+            if let menuArray = try? JSONSerialization.jsonObject(with: menuData) as? [[String: Any]],
+               !menuArray.isEmpty {
+                print("🍽️ 삭제할 메뉴 개수: \(menuArray.count)")
+                print("🍽️ 메뉴 데이터: \(menuArray)")
+                
+                // 해당 사용자가 수정한 메뉴만 삭제
+                try await client.database
+                    .from("menus")
+                    .delete()
+                    .eq("updated_by", value: userEmail)
+                    .execute()
+                print("✅ 사용자 메뉴 데이터 삭제 완료")
+            } else {
+                print("🍽️ 삭제할 메뉴 데이터 없음 (사용자: \(userEmail))")
+            }
             
             // 2. 사용자 프로필 데이터 삭제
             print("👤 사용자 프로필 데이터 삭제 시작")
-            try await client.database
+            
+            // 먼저 사용자가 존재하는지 확인
+            let userResponse = try await client.database
                 .from("users")
-                .delete()
+                .select("id, email, campus_id")
                 .eq("id", value: userId)
                 .execute()
-            print("✅ 사용자 프로필 데이터 삭제 완료")
+            
+            let userData = userResponse.data
+            if let userArray = try? JSONSerialization.jsonObject(with: userData) as? [[String: Any]],
+               !userArray.isEmpty {
+                print("👤 삭제할 사용자 정보: \(userArray)")
+                
+                // 사용자 삭제
+                let deleteResponse = try await client.database
+                    .from("users")
+                    .delete()
+                    .eq("id", value: userId)
+                    .execute()
+                
+                print("✅ 사용자 프로필 데이터 삭제 완료")
+                print("🗑️ 삭제 응답: \(deleteResponse)")
+            } else {
+                print("⚠️ 삭제할 사용자 데이터를 찾을 수 없음")
+            }
             
             // 3. 로컬 세션 및 데이터 정리
             print("🧹 로컬 데이터 정리 시작")
             
             // UserDefaults 정리
             UserDefaults.standard.removeObject(forKey: "manual.supabase.session")
+            UserDefaults.standard.removeObject(forKey: "saved.user.session")
             UserDefaults.standard.removeObject(forKey: "user.campus")
             UserDefaults.standard.removeObject(forKey: "user.preferences")
             
             // 키체인 정리
-            let keychain = Keychain(service: "com.coby.ssafyhub.session")
-            try? keychain.remove("manual.session")
+            let sessionKeychain = Keychain(service: "com.coby.ssafyhub.session")
+            try? sessionKeychain.remove("manual.session")
+            
+            let userKeychain = Keychain(service: "com.coby.ssafyhub.user")
+            try? userKeychain.remove("user.session")
             
             print("✅ 로컬 데이터 정리 완료")
             
