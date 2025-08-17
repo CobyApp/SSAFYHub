@@ -16,6 +16,7 @@ struct MenuEditorView: View {
     @State private var isSaving = false
     @State private var showingAlert = false
     @State private var alertMessage = ""
+    @State private var showingOverwriteAlert = false
     
     // 주간 날짜 계산 (월요일~금요일)
     private var weeklyDates: [Date] {
@@ -83,8 +84,8 @@ struct MenuEditorView: View {
             }
             }
             
-            // 로딩 오버레이 (사진 분석 중일 때만 표시)
-            if isProcessingImage {
+            // 로딩 오버레이 (사진 분석 중이거나 저장 중일 때 표시)
+            if isProcessingImage || isSaving {
                 loadingOverlay
             }
         }
@@ -145,6 +146,14 @@ struct MenuEditorView: View {
             Button("취소", role: .cancel) { }
         } message: {
             Text(permissionAlertMessage)
+        }
+        .alert("메뉴 덮어쓰기", isPresented: $showingOverwriteAlert) {
+            Button("저장", role: .destructive) {
+                saveWeeklyMenu()
+            }
+            Button("취소", role: .cancel) { }
+        } message: {
+            Text("기존 메뉴가 있을 경우 데이터가 덮어쓰기 됩니다.\n저장하시겠습니까?")
         }
     }
     
@@ -330,6 +339,14 @@ struct MenuEditorView: View {
         } message: {
             Text(permissionAlertMessage)
         }
+        .alert("메뉴 덮어쓰기", isPresented: $showingOverwriteAlert) {
+            Button("저장", role: .destructive) {
+                saveWeeklyMenu()
+            }
+            Button("취소", role: .cancel) { }
+        } message: {
+            Text("기존 메뉴가 있을 경우 데이터가 덮어쓰기 됩니다.\n저장하시겠습니까?")
+        }
     }
     
     // MARK: - Weekly Menu Section
@@ -458,32 +475,44 @@ struct MenuEditorView: View {
                     .tint(AppColors.primary)
                 
                 VStack(spacing: AppSpacing.md) {
-                    Text("AI가 메뉴를 분석하고 있습니다...")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundColor(AppColors.textPrimary)
-                        .multilineTextAlignment(.center)
-                        .shadow(color: .black.opacity(0.3), radius: 2, x: 1, y: 1)
-                    
-                    Text("잠시만 기다려주세요")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(AppColors.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .shadow(color: .black.opacity(0.2), radius: 1, x: 0.5, y: 0.5)
+                    if isProcessingImage {
+                        Text("AI가 메뉴를 분석하고 있습니다...")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(AppColors.textPrimary)
+                            .multilineTextAlignment(.center)
+                        
+                        Text("잠시만 기다려주세요")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(AppColors.textSecondary)
+                            .multilineTextAlignment(.center)
+                    } else if isSaving {
+                        Text("메뉴를 저장하고 있습니다...")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(AppColors.textPrimary)
+                            .multilineTextAlignment(.center)
+                        
+                        Text("잠시만 기다려주세요")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(AppColors.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
                 }
                 
-                // 진행 상태 표시 (선택사항)
-                HStack(spacing: AppSpacing.sm) {
-                    ForEach(0..<3) { index in
-                        Circle()
-                            .fill(AppColors.primary.opacity(0.6))
-                            .frame(width: 8, height: 8)
-                            .scaleEffect(index == 0 ? 1.2 : 1.0)
-                            .animation(
-                                .easeInOut(duration: 0.6)
-                                .repeatForever(autoreverses: true)
-                                .delay(Double(index) * 0.2),
-                                value: isProcessingImage
-                            )
+                // 진행 상태 표시 (AI 분석 중일 때만)
+                if isProcessingImage {
+                    HStack(spacing: AppSpacing.sm) {
+                        ForEach(0..<3) { index in
+                            Circle()
+                                .fill(AppColors.primary.opacity(0.6))
+                                .frame(width: 8, height: 8)
+                                .scaleEffect(index == 0 ? 1.2 : 1.0)
+                                .animation(
+                                    .easeInOut(duration: 0.6)
+                                    .repeatForever(autoreverses: true)
+                                    .delay(Double(index) * 0.2),
+                                    value: isProcessingImage
+                                )
+                        }
                     }
                 }
             }
@@ -543,7 +572,8 @@ struct MenuEditorView: View {
     private func saveMenu() {
         print("💾 메뉴 저장 시작")
         
-        saveWeeklyMenu()
+        // 덮어쓰기 확인 알럿 표시
+        showingOverwriteAlert = true
     }
     
     // MARK: - Save Weekly Menu
@@ -551,6 +581,9 @@ struct MenuEditorView: View {
         print("💾 주간 메뉴 저장 시작")
         print("📅 주 시작일: \(selectedWeekStart)")
         print("🏫 캠퍼스: \(Campus.default.displayName)")
+        
+        // 저장 중 상태로 설정하여 UI 막기
+        isSaving = true
         
         // 각 날짜별로 메뉴 저장
         Task {
@@ -589,11 +622,16 @@ struct MenuEditorView: View {
                 // 모든 저장 완료 후 화면 닫기
                 await MainActor.run {
                     print("✅ 주간 메뉴 저장 완료")
+                    isSaving = false
                     dismiss()
                 }
             } catch {
                 print("❌ 주간 메뉴 저장 실패: \(error)")
-                // TODO: 에러 처리
+                // 에러 발생 시에도 저장 중 상태 해제
+                await MainActor.run {
+                    isSaving = false
+                    // TODO: 에러 처리
+                }
             }
         }
     }

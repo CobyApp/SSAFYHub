@@ -9,6 +9,10 @@ struct SSAFYHubApp: App {
         WindowGroup {
             ZStack {
                 switch appCoordinator.currentRoute {
+                case .loading:
+                    LoadingView()
+                        .environmentObject(authViewModel)
+                        .environmentObject(appCoordinator)
                 case .auth:
                     AuthView()
                         .environmentObject(authViewModel)
@@ -71,8 +75,8 @@ struct SSAFYHubApp: App {
                         print("✅ 앱 시작 시 저장된 사용자 세션으로 로그인 복구: \(savedUser.email)")
                         authViewModel.authState = .authenticated(savedUser)
                         
-                                            print("🏫 기존 캠퍼스 정보: \(savedUser.campus.displayName)")
-                    appCoordinator.navigateToMainMenuWithCampus(savedUser.campus)
+                        print("🏫 기존 캠퍼스 정보: \(savedUser.campus.displayName)")
+                        appCoordinator.navigateToMainMenuWithCampus(savedUser.campus)
                     }
                     return
                 }
@@ -116,8 +120,8 @@ struct SSAFYHubApp: App {
                             print("✅ 앱 시작 시 수동 세션 복구로 로그인 발견: \(userData.email)")
                             authViewModel.authState = .authenticated(userData)
                             
-                                                    print("🏫 기존 캠퍼스 정보: \(userData.campus.displayName)")
-                        appCoordinator.navigateToMainMenuWithCampus(userData.campus)
+                            print("🏫 기존 캠퍼스 정보: \(userData.campus.displayName)")
+                            appCoordinator.navigateToMainMenuWithCampus(userData.campus)
                         }
                         return
                     }
@@ -128,7 +132,7 @@ struct SSAFYHubApp: App {
                     await MainActor.run {
                         print("❌ 앱 시작 시 로그인 상태 확인 실패")
                         authViewModel.authState = .unauthenticated
-                        appCoordinator.currentRoute = .auth
+                        appCoordinator.navigateToAuth()
                     }
                 }
             } catch {
@@ -138,7 +142,7 @@ struct SSAFYHubApp: App {
                     print("🔍 에러 설명: \(error.localizedDescription)")
                     
                     authViewModel.authState = .unauthenticated
-                    appCoordinator.currentRoute = .auth
+                    appCoordinator.navigateToAuth()
                 }
             }
         }
@@ -148,13 +152,29 @@ struct SSAFYHubApp: App {
 // MARK: - Loading View
 struct LoadingView: View {
     var body: some View {
-        VStack(spacing: 20) {
-            ProgressView()
-                .scaleEffect(1.5)
+        VStack(spacing: 24) {
+            Spacer()
             
-            Text("로딩 중...")
-                .font(.title2)
-                .foregroundColor(.secondary)
+            VStack(spacing: 20) {
+                Image(systemName: "fork.knife.circle")
+                    .font(.system(size: 80, weight: .light))
+                    .foregroundColor(AppColors.primary)
+                
+                ProgressView()
+                    .scaleEffect(1.2)
+                    .tint(AppColors.primary)
+                
+                Text("SSAFYHub")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundColor(AppColors.textPrimary)
+                
+                Text("로딩 중...")
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundColor(AppColors.textSecondary)
+            }
+            
+            Spacer()
         }
+        .background(AppColors.backgroundPrimary)
     }
 }

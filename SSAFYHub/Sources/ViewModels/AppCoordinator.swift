@@ -11,6 +11,7 @@ class AppCoordinator: ObservableObject {
     
     // MARK: - App Routes
     enum AppRoute: Hashable {
+        case loading
         case auth
         case mainMenu
         case settings
@@ -19,7 +20,8 @@ class AppCoordinator: ObservableObject {
     // MARK: - 초기화
     init() {
         print("🧭 Coordinator 초기화됨")
-        self.currentRoute = .auth
+        // 초기에는 로딩 상태로 설정하여 세션 체크 완료까지 대기
+        self.currentRoute = .loading
         self.selectedCampus = Campus.default // 기본값을 대전으로 설정
         print("🏫 기본 캠퍼스 설정: \(selectedCampus.displayName)")
     }
