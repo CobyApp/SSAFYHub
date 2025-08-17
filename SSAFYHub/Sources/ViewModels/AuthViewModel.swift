@@ -159,8 +159,13 @@ class AuthViewModel: ObservableObject {
             print("📱 새로운 상태: \(authState)")
         }
         
-        // 게스트 사용자 세션을 로컬에 저장
-        await supabaseService.saveUserSession(guestUser)
+        // 게스트 모드는 임시 사용자이므로 세션 저장하지 않음
+        // 앱을 다시 실행하면 로그인 화면부터 시작
+        
+        // Coordinator를 통해 메인화면으로 이동
+        await MainActor.run {
+            coordinator?.handleDirectAuthentication(guestUser)
+        }
         
         print("✅ signInAsGuest 완료")
         isLoading = false

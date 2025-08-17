@@ -37,7 +37,7 @@ struct SSAFYHubApp: App {
                         .environmentObject(themeManager)
                 }
             }
-            .animation(.easeInOut, value: appCoordinator.currentRoute)
+            .animation(.easeInOut(duration: 0.5), value: appCoordinator.currentRoute)
             .onChange(of: authViewModel.authState) { oldValue, newValue in
                 print("🔄 SSAFYHubApp에서 authState 변경 감지")
                 print("📱 이전 상태: \(oldValue)")
@@ -46,6 +46,13 @@ struct SSAFYHubApp: App {
                 // 인증된 상태인지 확인하고 Coordinator에 알림
                 if case .authenticated(let user) = newValue {
                     print("✅ 인증된 사용자: \(user.email) - \(user.campus.displayName)")
+                    
+                    // 게스트 모드 사용자는 앱 재시작 시 로그인 화면으로 가야 함
+                    // 세션이 저장되지 않으므로 앱 재시작 시 unauthenticated 상태가 됨
+                    if user.userType == .guest {
+                        print("👤 게스트 모드 사용자 - 앱 재시작 시 로그인 화면으로 이동")
+                        return
+                    }
                     
                     // 이미 메인화면에 있다면 중복 네비게이션 방지
                     if appCoordinator.currentRoute != .mainMenu {
@@ -62,7 +69,11 @@ struct SSAFYHubApp: App {
             .onAppear {
                 // 앱 시작 시 로그인 상태 확인
                 print("🚀 앱 시작 - 로그인 상태 확인")
-                checkInitialAuthState()
+                
+                // 2초간 로딩 화면 표시 후 상태 확인
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    checkInitialAuthState()
+                }
             }
             .onChange(of: colorScheme) { oldValue, newValue in
                 // 시스템 테마 변경 감지
@@ -79,16 +90,22 @@ struct SSAFYHubApp: App {
                 
                 // 1. 먼저 저장된 사용자 세션에서 복구 시도
                 if let savedUser = await authViewModel.supabaseService.restoreUserSession() {
-                    print("🔍 SSAFYHubApp: 저장된 사용자 세션 발견 - \(savedUser.email)")
-                    
-                    await MainActor.run {
-                        print("✅ 앱 시작 시 저장된 사용자 세션으로 로그인 복구: \(savedUser.email)")
-                        authViewModel.authState = .authenticated(savedUser)
+                    // 게스트 모드 사용자는 복구하지 않음
+                    if savedUser.userType == .guest {
+                        print("👤 게스트 모드 사용자 세션 발견 - 복구하지 않음")
+                        print("🔍 SSAFYHubApp: 게스트 모드는 임시 사용자이므로 세션 복구하지 않음")
+                    } else {
+                        print("🔍 SSAFYHubApp: 저장된 사용자 세션 발견 - \(savedUser.email)")
                         
-                        print("🏫 기존 캠퍼스 정보: \(savedUser.campus.displayName)")
-                        appCoordinator.navigateToMainMenuWithCampus(savedUser.campus)
+                        await MainActor.run {
+                            print("✅ 앱 시작 시 저장된 사용자 세션으로 로그인 복구: \(savedUser.email)")
+                            authViewModel.authState = .authenticated(savedUser)
+                            
+                            print("🏫 기존 캠퍼스 정보: \(savedUser.campus.displayName)")
+                            appCoordinator.navigateToMainMenuWithCampus(savedUser.campus)
+                        }
+                        return
                     }
-                    return
                 }
                 
                 // 2. Supabase 자동 세션 확인
@@ -122,18 +139,24 @@ struct SSAFYHubApp: App {
                         let userData = try await authViewModel.fetchUserData(userId: manualSession.user.id.uuidString)
                         print("🔍 SSAFYHubApp: 사용자 데이터 로드 완료 - \(userData.email)")
                         
-                        // 사용자 세션 저장
-                        await authViewModel.supabaseService.saveUserSession(userData)
-                        print("🔍 SSAFYHubApp: 수동 세션 복구 후 사용자 세션 저장 완료 - \(userData.email)")
-                        
-                        await MainActor.run {
-                            print("✅ 앱 시작 시 수동 세션 복구로 로그인 발견: \(userData.email)")
-                            authViewModel.authState = .authenticated(userData)
+                        // 게스트 모드 사용자는 복구하지 않음
+                        if userData.userType == .guest {
+                            print("👤 게스트 모드 사용자 수동 세션 발견 - 복구하지 않음")
+                            print("🔍 SSAFYHubApp: 게스트 모드는 임시 사용자이므로 수동 세션 복구하지 않음")
+                        } else {
+                            // 사용자 세션 저장
+                            await authViewModel.supabaseService.saveUserSession(userData)
+                            print("🔍 SSAFYHubApp: 수동 세션 복구 후 사용자 세션 저장 완료 - \(userData.email)")
                             
-                            print("🏫 기존 캠퍼스 정보: \(userData.campus.displayName)")
-                            appCoordinator.navigateToMainMenuWithCampus(userData.campus)
+                            await MainActor.run {
+                                print("✅ 앱 시작 시 수동 세션 복구로 로그인 발견: \(userData.email)")
+                                authViewModel.authState = .authenticated(userData)
+                                
+                                print("🏫 기존 캠퍼스 정보: \(userData.campus.displayName)")
+                                appCoordinator.navigateToMainMenuWithCampus(userData.campus)
+                            }
+                            return
                         }
-                        return
                     }
                     
                     print("🔍 SSAFYHubApp: 모든 세션 복구 시도 실패, 로그아웃 상태로 설정")
@@ -161,30 +184,31 @@ struct SSAFYHubApp: App {
 
 // MARK: - Loading View
 struct LoadingView: View {
+    @State private var logoOpacity: Double = 0
+    @State private var logoScale: Double = 0.3
+    
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        ZStack {
+            // 전체 배경을 새로운 색상으로 설정
+            Color(red: 1/255, green: 158/255, blue: 235/255)
+                .ignoresSafeArea()
             
-            VStack(spacing: 20) {
-                Image(systemName: "fork.knife.circle")
-                    .font(.system(size: 80, weight: .light))
-                    .foregroundColor(AppColors.primary)
-                
-                ProgressView()
-                    .scaleEffect(1.2)
-                    .tint(AppColors.primary)
-                
-                Text("SSAFYHub")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundColor(AppColors.textPrimary)
-                
-                Text("로딩 중...")
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundColor(AppColors.textSecondary)
-            }
-            
-            Spacer()
+            // 로고를 적당한 크기로 중앙에 배치
+            Image("logo")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 150, height: 150)
+                .opacity(logoOpacity)
+                .scaleEffect(logoScale)
+                .animation(.easeInOut(duration: 0.8), value: logoOpacity)
+                .animation(.easeInOut(duration: 0.8), value: logoScale)
         }
-        .background(AppColors.backgroundPrimary)
+        .onAppear {
+            // 로고가 작게 시작해서 부드럽게 커지도록
+            withAnimation(.easeInOut(duration: 0.8)) {
+                logoOpacity = 1.0
+                logoScale = 1.0
+            }
+        }
     }
 }
