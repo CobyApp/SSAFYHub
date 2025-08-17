@@ -58,16 +58,23 @@ struct AuthView: View {
                         request.requestedScopes = [.fullName, .email]
                     },
                     onCompletion: { result in
+                        // 중복 호출 방지
+                        guard !authViewModel.isAppleSignInInProgress else {
+                            print("⚠️ Apple Sign-In이 이미 진행 중입니다")
+                            return
+                        }
+                        
                         Task {
                             await handleAppleSignIn(result)
                         }
                     }
                 )
-                .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black) // 테마에 따라 자동 조정
+                .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
                 .frame(height: 56)
                 .cornerRadius(16)
                 .disabled(authViewModel.isAppleSignInInProgress)
                 .opacity(authViewModel.isAppleSignInInProgress ? 0.6 : 1.0)
+                .allowsHitTesting(!authViewModel.isAppleSignInInProgress)
                 
                 // 게스트 모드 버튼
                 Button(action: {
@@ -118,10 +125,32 @@ struct AuthView: View {
     }
     
     private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) async {
+        // 중복 호출 방지
+        guard !authViewModel.isAppleSignInInProgress else {
+            print("⚠️ Apple Sign-In이 이미 진행 중입니다")
+            return
+        }
+        
         do {
-            try await authViewModel.signInWithAppleAndNavigate()
+            print("🍎 Apple Sign-In 결과 처리 시작")
+            
+            // Apple Sign-In 결과를 처리하여 Identity Token 획득
+            let identityToken = try await AppleSignInService.shared.handleAppleSignInCompletion(result)
+            print("🍎 Apple Sign-In 성공, Identity Token 획득")
+            
+            // Supabase 인증 진행
+            try await authViewModel.completeAppleSignIn(with: identityToken)
+            
         } catch {
             print("❌ Apple Sign-In 실패: \(error)")
+            
+            // 중복 호출 에러는 사용자에게 표시하지 않음
+            if let nsError = error as NSError?, nsError.code == -10 {
+                print("ℹ️ 중복 호출 에러 - 사용자에게 표시하지 않음")
+                return
+            }
+            
+            // 다른 에러는 AuthViewModel에서 처리되므로 여기서는 로그만 출력
         }
     }
 }

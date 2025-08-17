@@ -55,31 +55,6 @@ class AuthViewModel: ObservableObject {
         }
     }
     
-    func signInWithApple() async {
-        isLoading = true
-        errorMessage = nil
-        isAppleSignInInProgress = true
-        
-        do {
-            let identityToken = try await AppleSignInService.shared.signInWithApple()
-            print("🍎 Apple 로그인 성공, Identity Token 획득")
-            
-            // Supabase 인증
-            let user = try await supabaseService.authenticateWithApple(identityToken: identityToken)
-            print("🔐 Supabase 인증 성공: \(user.email)")
-            
-            authState = .authenticated(user)
-            
-        } catch {
-            print("❌ Apple 로그인 실패: \(error)")
-            errorMessage = "Apple 로그인에 실패했습니다: \(error.localizedDescription)"
-            authState = .unauthenticated
-        }
-        
-        isLoading = false
-        isAppleSignInInProgress = false
-    }
-    
     func signOut() async {
         isLoading = true
         errorMessage = nil
@@ -196,17 +171,50 @@ class AuthViewModel: ObservableObject {
     func signInWithAppleAndNavigate() async throws {
         guard !isAppleSignInInProgress else {
             print("⚠️ Apple Sign-In이 이미 진행 중입니다")
-            return
+            throw NSError(domain: "AppleSignInError", code: -10, userInfo: [NSLocalizedDescriptionKey: "Apple Sign-In이 이미 진행 중입니다"])
         }
         
         isAppleSignInInProgress = true
         errorMessage = nil
         showError = false
         
+        defer {
+            isAppleSignInInProgress = false
+        }
+        
         do {
             print("🍎 Apple Sign-In 시작")
-            let identityToken = try await AppleSignInService.shared.signInWithApple()
-            print("🍎 Apple Sign-In 성공, Identity Token 획득")
+            
+            // Apple Sign-In은 AuthView에서 직접 처리되므로 여기서는 Supabase 인증만 진행
+            // Identity Token은 AuthView에서 전달받아야 함
+            throw NSError(domain: "AppleSignInError", code: -20, userInfo: [NSLocalizedDescriptionKey: "Apple Sign-In은 AuthView에서 직접 처리되어야 합니다"])
+            
+        } catch {
+            print("❌ Apple Sign-In 실패: \(error)")
+            errorMessage = "Apple 로그인에 실패했습니다: \(error.localizedDescription)"
+            showError = true
+            authState = .unauthenticated
+            throw error
+        }
+    }
+    
+    // Apple Sign-In 완료 후 Supabase 인증을 처리하는 메서드
+    func completeAppleSignIn(with identityToken: String) async throws {
+        guard !isAppleSignInInProgress else {
+            print("⚠️ Apple Sign-In이 이미 진행 중입니다")
+            throw NSError(domain: "AppleSignInError", code: -10, userInfo: [NSLocalizedDescriptionKey: "Apple Sign-In이 이미 진행 중입니다"])
+        }
+        
+        isAppleSignInInProgress = true
+        errorMessage = nil
+        showError = false
+        
+        defer {
+            isAppleSignInInProgress = false
+        }
+        
+        do {
+            print("🍎 Apple Sign-In 완료, Supabase 인증 시작")
             
             // Supabase 인증
             let authenticatedUser = try await supabaseService.authenticateWithApple(identityToken: identityToken)
@@ -220,14 +228,12 @@ class AuthViewModel: ObservableObject {
             
             print("✅ Apple Sign-In 및 네비게이션 완료")
         } catch {
-            print("❌ Apple Sign-In 실패: \(error)")
-            errorMessage = "Apple 로그인에 실패했습니다: \(error.localizedDescription)"
+            print("❌ Supabase 인증 실패: \(error)")
+            errorMessage = "로그인에 실패했습니다: \(error.localizedDescription)"
             showError = true
             authState = .unauthenticated
             throw error
         }
-        
-        isAppleSignInInProgress = false
     }
     
     public func fetchUserData(userId: String) async throws -> AppUser {
