@@ -4,6 +4,7 @@ import SharedModels
 struct SettingsView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @EnvironmentObject var appCoordinator: AppCoordinator
+    @Environment(\.dismiss) private var dismiss
     
     @State private var showingLogoutAlert = false
     @State private var showingDeleteAccountAlert = false
@@ -65,7 +66,8 @@ struct SettingsView: View {
             // 상단 뒤로가기 버튼
             HStack {
                 Button(action: {
-                    appCoordinator.navigateBackFromSettings()
+                    // NavigationStack의 pop 기능 사용
+                    dismiss()
                 }) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 20, weight: .medium))
