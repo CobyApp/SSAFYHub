@@ -728,7 +728,12 @@ struct MenuEditorView: View {
     
     // MARK: - 추출된 메뉴 데이터 적용
     private func applyExtractedMenuData(_ extractedMenus: [MealMenu]) {
-        guard !extractedMenus.isEmpty else { return }
+        guard !extractedMenus.isEmpty else { 
+            // AI로 데이터를 추출하지 못했을 때 알럿 표시
+            alertMessage = "AI로 메뉴를 인식하는데 실패했습니다.\n다른 사진을 선택해주세요."
+            showingAlert = true
+            return 
+        }
         
         print("🔄 새로운 이미지 데이터로 기존 메뉴 덮어쓰기 시작")
         
