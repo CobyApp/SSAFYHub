@@ -27,7 +27,7 @@ let project = Project(
       infoPlist: .extendingDefault(with: [
         "CFBundleDisplayName": "SSAFYHub",
         "CFBundleName": "SSAFYHub",
-        "CFBundleVersion": "3",
+        "CFBundleVersion": "4",
         "CFBundleShortVersionString": "1.0.2",
         "CFBundleDevelopmentRegion": "ko",
         "CFBundleLocalizations": ["ko"],
@@ -82,7 +82,7 @@ let project = Project(
         "CFBundleName": "SSAFYHub 식단 위젯",
         "CFBundleDevelopmentRegion": "ko",
         "CFBundleLocalizations": ["ko"],
-        "CFBundleVersion": "3",
+        "CFBundleVersion": "4",
         "CFBundleShortVersionString": "1.0.2",
         "CFBundlePackageType": "XPC!",
         "CFBundleInfoDictionaryVersion": "6.0",
