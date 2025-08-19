@@ -39,14 +39,16 @@ class SupabaseService: ObservableObject {
     }
     
     // MARK: - Apple Sign In
-    func authenticateWithApple(identityToken: String) async throws -> AppUser {
+    func authenticateWithApple(identityToken: String, nonce: String) async throws -> AppUser {
         print("🍎 SupabaseService: Apple 로그인 시작")
+        print("🔐 Identity Token prefix: \(identityToken.prefix(15))...")
+        print("🔐 Nonce: \(nonce)")
         
         let session = try await client.auth.signInWithIdToken(
             credentials: .init(
                 provider: .apple,
                 idToken: identityToken,
-                nonce: ""
+                nonce: nonce
             )
         )
         

@@ -42,6 +42,10 @@ struct AuthView: View {
                     SignInWithAppleButton(
                         onRequest: { request in
                             request.requestedScopes = [.fullName, .email]
+                            // nonce 설정 추가
+                            let rawNonce = AppleSignInService.shared.generateNonce()
+                            request.nonce = AppleSignInService.shared.sha256(rawNonce)
+                            print("🍎 Apple Sign-In 요청 - nonce 설정됨")
                         },
                         onCompletion: { result in
                             // 중복 호출 방지
@@ -119,12 +123,12 @@ struct AuthView: View {
         do {
             print("🍎 Apple Sign-In 결과 처리 시작")
             
-            // Apple Sign-In 결과를 처리하여 Identity Token 획득
-            let identityToken = try await AppleSignInService.shared.handleAppleSignInCompletion(result)
-            print("🍎 Apple Sign-In 성공, Identity Token 획득")
+            // Apple Sign-In 결과를 처리하여 Identity Token과 nonce 획득
+            let result = try await AppleSignInService.shared.handleAppleSignInCompletion(result)
+            print("🍎 Apple Sign-In 성공, Identity Token과 nonce 획득")
             
-            // Supabase 인증 진행
-            try await authViewModel.completeAppleSignIn(with: identityToken)
+            // Supabase 인증 진행 (nonce 포함)
+            try await authViewModel.completeAppleSignIn(with: result.identityToken, nonce: result.nonce)
             
         } catch {
             print("❌ Apple Sign-In 실패: \(error)")

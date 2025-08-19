@@ -204,7 +204,7 @@ class AuthViewModel: ObservableObject {
     }
     
     // Apple Sign-In 완료 후 Supabase 인증을 처리하는 메서드
-    func completeAppleSignIn(with identityToken: String) async throws {
+    func completeAppleSignIn(with identityToken: String, nonce: String) async throws {
         guard !isAppleSignInInProgress else {
             print("⚠️ Apple Sign-In이 이미 진행 중입니다")
             throw NSError(domain: "AppleSignInError", code: -10, userInfo: [NSLocalizedDescriptionKey: "Apple Sign-In이 이미 진행 중입니다"])
@@ -220,9 +220,11 @@ class AuthViewModel: ObservableObject {
         
         do {
             print("🍎 Apple Sign-In 완료, Supabase 인증 시작")
+            print("🔐 Identity Token prefix: \(identityToken.prefix(15))...")
+            print("🔐 Nonce: \(nonce)")
             
-            // Supabase 인증
-            let authenticatedUser = try await supabaseService.authenticateWithApple(identityToken: identityToken)
+            // Supabase 인증 (nonce 포함)
+            let authenticatedUser = try await supabaseService.authenticateWithApple(identityToken: identityToken, nonce: nonce)
             print("🔐 Supabase 인증 성공: \(authenticatedUser.email)")
             
             // Apple 사용자 정보를 키체인에 저장 (TestFlight에서 중요!)
