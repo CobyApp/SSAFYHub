@@ -27,8 +27,8 @@ let project = Project(
       infoPlist: .extendingDefault(with: [
         "CFBundleDisplayName": "SSAFYHub",
         "CFBundleName": "SSAFYHub",
-        "CFBundleVersion": "4",
-        "CFBundleShortVersionString": "1.0.2",
+        "CFBundleVersion": "5",
+        "CFBundleShortVersionString": "1.0.3",
         "CFBundleDevelopmentRegion": "ko",
         "CFBundleLocalizations": ["ko"],
         "NSCameraUsageDescription": "메뉴 사진을 촬영하여 OCR로 메뉴를 인식하기 위해 카메라 접근 권한이 필요합니다.",
@@ -82,8 +82,8 @@ let project = Project(
         "CFBundleName": "SSAFYHub 식단 위젯",
         "CFBundleDevelopmentRegion": "ko",
         "CFBundleLocalizations": ["ko"],
-        "CFBundleVersion": "4",
-        "CFBundleShortVersionString": "1.0.2",
+        "CFBundleVersion": "5",
+        "CFBundleShortVersionString": "1.0.3",
         "CFBundlePackageType": "XPC!",
         "CFBundleInfoDictionaryVersion": "6.0",
         "NSExtension": [
