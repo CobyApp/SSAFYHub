@@ -313,7 +313,7 @@ struct SettingsView: View {
                     
                     Spacer()
                     
-                    Text("1.0.3")
+                    Text("1.0.4")
                         .font(AppTypography.body)
                         .foregroundColor(AppColors.textSecondary)
                 }
