@@ -292,7 +292,7 @@ class SupabaseService: ObservableObject {
     func fetchMenu(date: Date, campus: Campus) async throws -> MealMenu? {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
-        dateFormatter.timeZone = TimeZone.current
+        dateFormatter.timeZone = TimeZone(abbreviation: "UTC") // UTC 시간대 고정
         let dateString = dateFormatter.string(from: date)
         
         print("🔍 SupabaseService: 메뉴 조회 - 날짜: \(dateString), 캠퍼스: \(campus.rawValue)")
@@ -326,10 +326,12 @@ class SupabaseService: ObservableObject {
     func saveMenu(menuInput: MealMenuInput, updatedBy: String?) async throws {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.timeZone = TimeZone(abbreviation: "UTC") // UTC 시간대 고정
         let dateString = dateFormatter.string(from: menuInput.date)
         
         print("💾 SupabaseService: 메뉴 저장 시작")
-        print("📅 날짜: \(dateString)")
+        print("📅 원본 날짜: \(menuInput.date)")
+        print("📅 변환된 날짜 문자열: \(dateString)")
         print("🏫 캠퍼스: \(menuInput.campus.rawValue)")
         print("🍽️ A타입: \(menuInput.itemsA)")
         print("🍽️ B타입: \(menuInput.itemsB)")
@@ -404,6 +406,7 @@ class SupabaseService: ObservableObject {
         for (index, dailyMenu) in weeklyInput.weeklyMenus.enumerated() {
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyy-MM-dd"
+            dateFormatter.timeZone = TimeZone(abbreviation: "UTC") // UTC 시간대 고정
             let dateString = dateFormatter.string(from: dailyMenu.date)
             
             print("📅 \(index + 1)일차 메뉴 저장: \(dateString)")

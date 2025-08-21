@@ -8,6 +8,7 @@ struct MenuEditorView: View {
     
     let menuViewModel: MenuViewModel
     let date: Date
+    @Binding var isPresented: Bool
     
     // 주간 메뉴만 사용하므로 단일 메뉴 관련 상태 제거
     @State private var weeklyItemsA: [[String]] = Array(repeating: [], count: 5)
@@ -22,18 +23,24 @@ struct MenuEditorView: View {
     private var weeklyDates: [Date] {
         let calendar = Calendar.current
         
-        // selectedWeekStart에서 가장 가까운 월요일을 찾기
-        let weekday = calendar.component(.weekday, from: selectedWeekStart)
-        let daysToMonday = weekday == 1 ? 1 : (9 - weekday) % 7 // 일요일이면 다음 월요일, 그 외에는 이번 주 월요일
-        
-        guard let monday = calendar.date(byAdding: .day, value: daysToMonday, to: selectedWeekStart) else {
-            return []
-        }
+        // selectedWeekStart는 이미 월요일이므로 그대로 사용
+        let monday = selectedWeekStart
         
         // 월요일부터 5일 (월~금)
-        return (0..<5).compactMap { dayOffset in
+        let dates = (0..<5).compactMap { dayOffset in
             calendar.date(byAdding: .day, value: dayOffset, to: monday)
         }
+        
+        // 디버깅을 위한 로그
+        print("📅 weeklyDates 계산:")
+        print("   - selectedWeekStart: \(monday.formatted(date: .abbreviated, time: .omitted))")
+        for (index, date) in dates.enumerated() {
+            let weekday = calendar.component(.weekday, from: date)
+            let weekdayName = ["일", "월", "화", "수", "목", "금", "토"][weekday - 1]
+            print("   - \(index + 1)일차: \(date.formatted(date: .abbreviated, time: .omitted)) (\(weekdayName))")
+        }
+        
+        return dates
     }
     
     // 선택된 주가 월~금인지 확인
@@ -113,25 +120,14 @@ struct MenuEditorView: View {
             // 전달받은 날짜로 주 시작일 초기화
             let calendar = Calendar.current
             let targetDate = date
-            let weekday = calendar.component(.weekday, from: targetDate)
             
             // 해당 날짜가 포함된 주의 월요일을 찾기
-            if weekday == 1 { // 일요일
-                // 다음 주 월요일
-                if let nextMonday = calendar.date(byAdding: .day, value: 1, to: targetDate) {
-                    selectedWeekStart = nextMonday
-                }
-            } else if weekday == 7 { // 토요일
-                // 다음 주 월요일
-                if let nextMonday = calendar.date(byAdding: .day, value: 2, to: targetDate) {
-                    selectedWeekStart = nextMonday
-                }
-            } else {
-                // 평일이면 해당 주의 월요일
-                let daysFromMonday = weekday - 2 // 월요일이면 0, 화요일이면 1, ...
-                if let monday = calendar.date(byAdding: .day, value: -daysFromMonday, to: targetDate) {
-                    selectedWeekStart = monday
-                }
+            let weekday = calendar.component(.weekday, from: targetDate)
+            let daysFromMonday = weekday == 1 ? 6 : weekday - 2 // 일요일이면 6일 전, 월요일이면 0일 전
+            
+            if let monday = calendar.date(byAdding: .day, value: -daysFromMonday, to: targetDate) {
+                selectedWeekStart = monday
+                print("📅 주 시작일 설정: \(monday.formatted(date: .abbreviated, time: .omitted))")
             }
             
             // 기본 메뉴 항목 초기화
@@ -601,7 +597,13 @@ struct MenuEditorView: View {
                         continue
                     }
                     
-                    print("📅 \(date.formatted(date: .abbreviated, time: .omitted)) 메뉴 저장")
+                    // 디버깅을 위한 상세 정보 출력
+                    let calendar = Calendar.current
+                    let weekday = calendar.component(.weekday, from: date)
+                    let weekdayName = ["일", "월", "화", "수", "목", "금", "토"][weekday - 1]
+                    print("📅 \(index + 1)일차 메뉴 저장: \(date.formatted(date: .abbreviated, time: .omitted)) (\(weekdayName))")
+                    print("   - 실제 저장될 날짜: \(date)")
+                    print("   - ISO 형식: \(ISO8601DateFormatter().string(from: date))")
                     print("🍽️ A타입: \(itemsA)")
                     print("🍽️ B타입: \(itemsB)")
                     
@@ -616,14 +618,14 @@ struct MenuEditorView: View {
                         updatedBy: authViewModel.currentUser?.email
                     )
                     
-                    print("✅ \(date.formatted(date: .abbreviated, time: .omitted)) 메뉴 저장 완료")
+                    print("✅ \(index + 1)일차 메뉴 저장 완료")
                 }
                 
                 // 모든 저장 완료 후 화면 닫기
                 await MainActor.run {
                     print("✅ 주간 메뉴 저장 완료")
                     isSaving = false
-                    dismiss()
+                    isPresented = false // fullScreenCover 닫기
                 }
             } catch {
                 print("❌ 주간 메뉴 저장 실패: \(error)")
@@ -839,7 +841,8 @@ struct MenuEditorView: View {
 #Preview {
     MenuEditorView(
         menuViewModel: MenuViewModel(),
-        date: Date()
+        date: Date(),
+        isPresented: .constant(true)
     )
     .environmentObject(AuthViewModel())
 }

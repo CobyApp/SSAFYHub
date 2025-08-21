@@ -96,7 +96,8 @@ struct MainMenuView: View {
             if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
                 MenuEditorView(
                     menuViewModel: menuViewModel,
-                    date: menuViewModel.currentDate
+                    date: menuViewModel.currentDate,
+                    isPresented: $showMenuEditor
                 )
                 .environmentObject(authViewModel)
             }
