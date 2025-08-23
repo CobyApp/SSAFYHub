@@ -22,11 +22,13 @@ public struct MenuFeature {
         case weekStartChanged(Date)
         case campusChanged(Campus)
         case loadMenu
+        case retryFetchMenu
         case menuLoaded(MealMenu?)
         case loadMenuFailed(String)
         case setLoading(Bool)
         case setError(String?)
         case clearError
+        case clearMenu
     }
     
     @Dependency(\.supabaseService) var supabaseService
@@ -43,6 +45,9 @@ public struct MenuFeature {
                 
             case let .dateChanged(date):
                 state.currentDate = date
+                // 날짜 변경 시 이전 메뉴 데이터 초기화
+                state.currentMenu = nil
+                state.errorMessage = nil
                 return .run { send in
                     await send(.loadMenu)
                 }
@@ -53,6 +58,9 @@ public struct MenuFeature {
                 
             case let .campusChanged(campus):
                 state.campus = campus
+                // 캠퍼스 변경 시 이전 메뉴 데이터 초기화
+                state.currentMenu = nil
+                state.errorMessage = nil
                 return .run { send in
                     await send(.loadMenu)
                 }
@@ -64,11 +72,23 @@ public struct MenuFeature {
                     do {
                         let menu = try await supabaseService.fetchMenu(date: date, campus: campus)
                         await send(.menuLoaded(menu))
-                        await send(.setLoading(false))
                     } catch {
                         await send(.loadMenuFailed(error.localizedDescription))
-                        await send(.setLoading(false))
                     }
+                    await send(.setLoading(false))
+                }
+                
+            case .retryFetchMenu:
+                state.isLoading = true
+                state.errorMessage = nil
+                return .run { [date = state.currentDate, campus = state.campus] send in
+                    do {
+                        let menu = try await supabaseService.fetchMenu(date: date, campus: campus)
+                        await send(.menuLoaded(menu))
+                    } catch {
+                        await send(.loadMenuFailed(error.localizedDescription))
+                    }
+                    await send(.setLoading(false))
                 }
                 
             case let .menuLoaded(menu):
@@ -77,6 +97,7 @@ public struct MenuFeature {
                 
             case let .loadMenuFailed(error):
                 state.errorMessage = error
+                state.currentMenu = nil
                 return .none
                 
             case let .setLoading(isLoading):
@@ -89,6 +110,10 @@ public struct MenuFeature {
                 
             case .clearError:
                 state.errorMessage = nil
+                return .none
+                
+            case .clearMenu:
+                state.currentMenu = nil
                 return .none
             }
         }

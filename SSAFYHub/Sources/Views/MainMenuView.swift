@@ -147,6 +147,8 @@ struct MainMenuView: View {
                         .background(AppColors.backgroundTertiary)
                         .cornerRadius(16)
                 }
+                .disabled(viewStore.menu.isLoading)
+                .opacity(viewStore.menu.isLoading ? 0.5 : 1.0)
                 
                 Spacer()
                 
@@ -180,6 +182,8 @@ struct MainMenuView: View {
                         .background(AppColors.backgroundTertiary)
                         .cornerRadius(16)
                 }
+                .disabled(viewStore.menu.isLoading)
+                .opacity(viewStore.menu.isLoading ? 0.5 : 1.0)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 8)

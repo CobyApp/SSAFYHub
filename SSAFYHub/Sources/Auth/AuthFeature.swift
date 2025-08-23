@@ -13,7 +13,14 @@ public struct AuthFeature {
         public var isLoading = false
         public var errorMessage: String?
         
-        public init() {}
+        public init() {
+            // 초기화 시 저장된 사용자 정보 복원
+            if let savedUserData = UserDefaults.standard.data(forKey: "savedUser"),
+               let savedUser = try? JSONDecoder().decode(AppUser.self, from: savedUserData) {
+                self.currentUser = savedUser
+                print("🔐 저장된 사용자 정보 복원: \(savedUser.email)")
+            }
+        }
     }
     
     public enum Action: Equatable {
@@ -64,6 +71,8 @@ public struct AuthFeature {
             case .exitGuestMode:
                 // 게스트 모드 종료 - 사용자 정보만 제거
                 state.currentUser = nil
+                // UserDefaults에서도 제거
+                UserDefaults.standard.removeObject(forKey: "savedUser")
                 return .none
                 
             case .signOut:
@@ -77,10 +86,19 @@ public struct AuthFeature {
             case let .userAuthenticated(user):
                 state.currentUser = user
                 state.errorMessage = nil
+                
+                // 사용자 정보를 UserDefaults에 저장
+                if let userData = try? JSONEncoder().encode(user) {
+                    UserDefaults.standard.set(userData, forKey: "savedUser")
+                    print("🔐 사용자 정보 저장됨: \(user.email)")
+                }
+                
                 return .none
                 
             case .userSignedOut:
                 state.currentUser = nil
+                // UserDefaults에서도 제거
+                UserDefaults.standard.removeObject(forKey: "savedUser")
                 return .none
                 
             case let .setLoading(isLoading):
