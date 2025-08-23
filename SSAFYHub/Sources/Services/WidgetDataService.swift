@@ -2,12 +2,12 @@ import Foundation
 import WidgetKit
 import SharedModels
 
-class WidgetDataService {
+public class WidgetDataService {
     static let shared = WidgetDataService()
     
     private let userDefaults: UserDefaults?
     
-    private init() {
+    public init() {
         // App Group UserDefaults 초기화
         self.userDefaults = UserDefaults(suiteName: "group.com.coby.ssafyhub")
         

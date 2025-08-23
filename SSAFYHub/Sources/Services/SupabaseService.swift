@@ -4,12 +4,12 @@ import SharedModels
 import AuthenticationServices
 import KeychainAccess
 
-class SupabaseService: ObservableObject {
+public class SupabaseService: ObservableObject {
     static let shared = SupabaseService()
     
     let client: SupabaseClient
     
-    private init() {
+    public init() {
         // APIKeyManager에서 Supabase 설정 가져오기
         let apiKeyManager = APIKeyManager.shared
         

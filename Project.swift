@@ -51,6 +51,9 @@ let project = Project(
       dependencies: [
         .target(name: "SharedModels"),
         .external(name: "Supabase"),
+        .external(name: "ComposableArchitecture"),
+        .external(name: "Dependencies"),
+        .external(name: "IdentifiedCollections"),
         .target(name: "SSAFYHubWidget")
       ],
       settings: .settings(base: [

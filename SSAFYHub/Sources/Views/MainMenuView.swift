@@ -1,117 +1,100 @@
 import SwiftUI
+import ComposableArchitecture
 import SharedModels
 
 struct MainMenuView: View {
-    @EnvironmentObject var authViewModel: AuthViewModel
-    @EnvironmentObject var appCoordinator: AppCoordinator
-    @StateObject var menuViewModel = MenuViewModel()
+    let store: StoreOf<AppFeature>
     @State private var showMenuEditor = false
     @State private var showSettings = false
-
     @State private var showGuestAccessAlert = false
     
-    // 한글 요일 텍스트
-    private var weekdayText: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ko_KR")
-        formatter.dateFormat = "E"
-        return formatter.string(from: menuViewModel.currentDate)
-    }
-    
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // 커스텀 헤더
-                headerView
-                
-                ScrollView {
-                    VStack(spacing: 0) {
-                                        // 메뉴 컨텐츠
-                    if let menu = menuViewModel.currentMenu {
-                        // 메뉴가 있지만 내용이 비어있는지 확인
-                        let hasMenuA = !menu.itemsA.isEmpty && !menu.itemsA.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                        let hasMenuB = !menu.itemsB.isEmpty && !menu.itemsB.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                        
-                        if hasMenuA || hasMenuB {
-                            menuContentView(menu)
-                        } else {
-                            // 메뉴는 있지만 내용이 비어있음 - 버튼 없이 메시지만 표시
-                            noMenuContentView
-                        }
-                    } else {
-                        // 메뉴가 아예 없음 - 메뉴 등록하기 버튼 표시
-                        emptyMenuView
-                    }
-                        
-                        Spacer(minLength: 20)
-                    }
-                    .background(AppColors.backgroundPrimary)
-                }
-
-                .gesture(
-                    DragGesture()
-                        .onEnded { value in
-                            let threshold: CGFloat = 50
-                            let translation = value.translation
-                            if translation.width > threshold {
-                                // 오른쪽으로 스와이프 - 이전 날짜
-                                print("👈 오른쪽 스와이프 - 이전 날짜로 이동")
-                                withAnimation(.easeInOut(duration: 0.3)) {
-                                    menuViewModel.goToPreviousDay()
+        WithViewStore(store, observe: { $0 }) { viewStore in
+            NavigationStack {
+                VStack(spacing: 0) {
+                    // 커스텀 헤더
+                    headerView(viewStore)
+                    
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            // 메뉴 컨텐츠
+                            if let menu = viewStore.menu.currentMenu {
+                                // 메뉴가 있지만 내용이 비어있는지 확인
+                                let hasMenuA = !menu.itemsA.isEmpty && !menu.itemsA.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                                let hasMenuB = !menu.itemsB.isEmpty && !menu.itemsB.allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                                
+                                if hasMenuA || hasMenuB {
+                                    menuContentView(menu, viewStore)
+                                } else {
+                                    // 메뉴는 있지만 내용이 비어있음 - 버튼 없이 메시지만 표시
+                                    noMenuContentView(viewStore)
                                 }
-                            } else if translation.width < -threshold {
-                                // 왼쪽으로 스와이프 - 다음 날짜
-                                print("👉 왼쪽 스와이프 - 다음 날짜로 이동")
-                                withAnimation(.easeInOut(duration: 0.3)) {
-                                    menuViewModel.goToNextDay()
+                            } else {
+                                // 메뉴가 아예 없음 - 메뉴 등록하기 버튼 표시
+                                emptyMenuView(viewStore)
+                            }
+                            
+                            Spacer(minLength: 20)
+                        }
+                        .background(AppColors.backgroundPrimary)
+                    }
+                    .gesture(
+                        DragGesture()
+                            .onEnded { value in
+                                let threshold: CGFloat = 50
+                                let translation = value.translation
+                                if translation.width > threshold {
+                                    // 오른쪽으로 스와이프 - 이전 날짜
+                                    print("👈 오른쪽 스와이프 - 이전 날짜로 이동")
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        // 주말 자동 처리: 토/일 → 이전 평일로 이동
+                                        let previousDate = getPreviousWeekday(Calendar.current.date(byAdding: .day, value: -1, to: viewStore.menu.currentDate) ?? Date())
+                                        viewStore.send(.menu(.dateChanged(previousDate)))
+                                    }
+                                } else if translation.width < -threshold {
+                                    // 왼쪽으로 스와이프 - 다음 날짜
+                                    print("👉 왼쪽 스와이프 - 다음 날짜로 이동")
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        // 주말 자동 처리: 토/일 → 다음 평일로 이동
+                                        let nextDate = getNextWeekday(Calendar.current.date(byAdding: .day, value: 1, to: viewStore.menu.currentDate) ?? Date())
+                                        viewStore.send(.menu(.dateChanged(nextDate)))
+                                    }
                                 }
                             }
-                        }
-                )
-            }
-            .navigationDestination(isPresented: $showSettings) {
-                SettingsView()
-                    .environmentObject(authViewModel)
-                    .environmentObject(appCoordinator)
-                    .navigationBarHidden(true)
-            }
-        }
-        .onAppear {
-            if let currentUser = authViewModel.currentUser {
-                // 사용자의 캠퍼스 정보가 있으면 사용, 없으면 대전으로 설정
-                let userCampus = currentUser.campus
-                if userCampus.isAvailable {
-                    menuViewModel.selectedCampus = userCampus
-                } else {
-                    menuViewModel.selectedCampus = .daejeon
+                    )
                 }
-                menuViewModel.loadMenuForCurrentDate()
-            } else {
-                // 게스트 사용자일 경우 대전으로 설정
-                menuViewModel.selectedCampus = .daejeon
-                menuViewModel.loadMenuForCurrentDate()
+                .navigationDestination(isPresented: $showSettings) {
+                    SettingsView(
+                        store: store.scope(state: \.settings, action: \.settings)
+                    )
+                    .navigationBarHidden(true)
+                }
             }
-        }
-        .fullScreenCover(isPresented: $showMenuEditor) {
-            if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
-                MenuEditorView(
-                    menuViewModel: menuViewModel,
-                    date: menuViewModel.currentDate,
-                    isPresented: $showMenuEditor
-                )
-                .environmentObject(authViewModel)
+            .onAppear {
+                viewStore.send(.onAppear)
+                viewStore.send(.menu(.onAppear))
+                
+                // 주말일 경우 가장 가까운 월요일로 자동 설정
+                adjustWeekendDateIfNeeded(viewStore)
             }
-        }
-
-        .alert("게스트 모드 제한", isPresented: $showGuestAccessAlert) {
-            Button("확인") { }
-        } message: {
-            Text("게스트 사용자는 메뉴 편집이 제한됩니다. Apple ID로 로그인하여 모든 기능을 이용하세요.")
+            .alert("게스트 모드 제한", isPresented: $showGuestAccessAlert) {
+                Button("확인") { }
+            } message: {
+                Text("게스트 사용자는 메뉴 편집이 제한됩니다. Apple ID로 로그인하여 모든 기능을 이용하세요.")
+            }
+            .fullScreenCover(isPresented: $showMenuEditor) {
+                if let currentUser = viewStore.auth.currentUser, currentUser.isAuthenticated {
+                    MenuEditorView(
+                        store: store.scope(state: \.menuEditor, action: \.menuEditor)
+                    )
+                }
+            }
         }
     }
     
     // MARK: - Header View
-    private var headerView: some View {
+    @ViewBuilder
+    private func headerView(_ viewStore: ViewStoreOf<AppFeature>) -> some View {
         VStack(spacing: 0) {
             // 상단 설정 버튼과 메인 헤더를 한 줄에 배치
             HStack {
@@ -120,7 +103,7 @@ struct MainMenuView: View {
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundColor(AppColors.textPrimary)
                     
-                    if let currentUser = authViewModel.currentUser {
+                    if let currentUser = viewStore.auth.currentUser {
                         Text(currentUser.campus.displayName)
                             .font(.system(size: 14, weight: .medium, design: .rounded))
                             .foregroundColor(AppColors.textSecondary)
@@ -140,8 +123,8 @@ struct MainMenuView: View {
                         .font(.system(size: 18, weight: .medium))
                         .foregroundColor(AppColors.textSecondary)
                         .frame(width: 40, height: 40)
-                                        .background(AppColors.backgroundTertiary)
-                .cornerRadius(20)
+                        .background(AppColors.backgroundTertiary)
+                        .cornerRadius(20)
                 }
             }
             .padding(.horizontal, 20)
@@ -153,7 +136,8 @@ struct MainMenuView: View {
                 Button(action: {
                     print("👈 왼쪽 화살표 터치 - 이전 날짜로 이동")
                     withAnimation(.easeInOut(duration: 0.3)) {
-                        menuViewModel.goToPreviousDay()
+                        let previousDate = getPreviousWeekday(Calendar.current.date(byAdding: .day, value: -1, to: viewStore.menu.currentDate) ?? Date())
+                        viewStore.send(.menu(.dateChanged(previousDate)))
                     }
                 }) {
                     Image(systemName: "chevron.left")
@@ -167,7 +151,7 @@ struct MainMenuView: View {
                 Spacer()
                 
                 HStack(spacing: 8) {
-                    Text(menuViewModel.currentDate, style: .date)
+                    Text(dateString(from: viewStore.menu.currentDate))
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .foregroundColor(AppColors.textPrimary)
                     
@@ -175,7 +159,7 @@ struct MainMenuView: View {
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(AppColors.textTertiary)
                     
-                    Text(weekdayText)
+                    Text(weekdayString(from: viewStore.menu.currentDate))
                         .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundColor(AppColors.textSecondary)
                 }
@@ -185,7 +169,8 @@ struct MainMenuView: View {
                 Button(action: {
                     print("👉 오른쪽 화살표 터치 - 다음 날짜로 이동")
                     withAnimation(.easeInOut(duration: 0.3)) {
-                        menuViewModel.goToNextDay()
+                        let nextDate = getNextWeekday(Calendar.current.date(byAdding: .day, value: 1, to: viewStore.menu.currentDate) ?? Date())
+                        viewStore.send(.menu(.dateChanged(nextDate)))
                     }
                 }) {
                     Image(systemName: "chevron.right")
@@ -203,7 +188,8 @@ struct MainMenuView: View {
     }
     
     // MARK: - Menu Content View
-    private func menuContentView(_ menu: MealMenu) -> some View {
+    @ViewBuilder
+    private func menuContentView(_ menu: MealMenu, _ viewStore: ViewStoreOf<AppFeature>) -> some View {
         VStack(spacing: 20) {
             // A타입 메뉴
             if !menu.itemsA.isEmpty && !menu.itemsA.allSatisfy({ $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
@@ -216,7 +202,7 @@ struct MainMenuView: View {
             }
             
             // 메뉴 수정 버튼 (인증된 사용자) 또는 게스트나가기 버튼 (게스트 사용자)
-            if let currentUser = authViewModel.currentUser {
+            if let currentUser = viewStore.auth.currentUser {
                 if currentUser.isAuthenticated {
                     Button(action: { showMenuEditor = true }) {
                         HStack(spacing: 12) {
@@ -244,9 +230,8 @@ struct MainMenuView: View {
                     }
                 } else if currentUser.isGuest {
                     Button(action: {
-                        Task {
-                            await authViewModel.exitGuestMode()
-                        }
+                        // 게스트 모드 종료
+                        viewStore.send(.auth(.exitGuestMode))
                     }) {
                         HStack(spacing: 12) {
                             Image(systemName: "arrow.left.circle.fill")
@@ -310,32 +295,9 @@ struct MainMenuView: View {
         .cornerRadius(16)
     }
     
-    // MARK: - Holiday View
-    private var holidayView: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 16) {
-                Image(systemName: "calendar.badge.clock")
-                    .font(.system(size: 60, weight: .light))
-                    .foregroundColor(AppColors.textTertiary)
-                
-                VStack(spacing: 8) {
-                    Text("공휴일")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
-                        .foregroundColor(AppColors.textPrimary)
-                    
-                    Text("오늘은 공휴일입니다")
-                        .font(.system(size: 14, weight: .regular, design: .rounded))
-                        .foregroundColor(AppColors.textSecondary)
-                }
-            }
-        }
-        .padding(20)
-        .background(AppColors.backgroundSecondary)
-        .cornerRadius(16)
-    }
-    
     // MARK: - No Menu Content View (메뉴는 있지만 내용이 비어있음)
-    private var noMenuContentView: some View {
+    @ViewBuilder
+    private func noMenuContentView(_ viewStore: ViewStoreOf<AppFeature>) -> some View {
         VStack(spacing: 24) {
             Spacer()
             
@@ -356,7 +318,7 @@ struct MainMenuView: View {
             }
             
             // 메뉴 수정 버튼 (인증된 사용자) 또는 게스트나가기 버튼 (게스트 사용자)
-            if let currentUser = authViewModel.currentUser {
+            if let currentUser = viewStore.auth.currentUser {
                 if currentUser.isAuthenticated {
                     Button(action: { showMenuEditor = true }) {
                         HStack(spacing: 12) {
@@ -384,9 +346,7 @@ struct MainMenuView: View {
                     }
                 } else if currentUser.isGuest {
                     Button(action: {
-                        Task {
-                            await authViewModel.exitGuestMode()
-                        }
+                        viewStore.send(.auth(.exitGuestMode))
                     }) {
                         HStack(spacing: 12) {
                             Image(systemName: "arrow.left.circle.fill")
@@ -420,7 +380,8 @@ struct MainMenuView: View {
     }
     
     // MARK: - Empty Menu View (메뉴를 아직 등록하지 않음)
-    private var emptyMenuView: some View {
+    @ViewBuilder
+    private func emptyMenuView(_ viewStore: ViewStoreOf<AppFeature>) -> some View {
         VStack(spacing: 24) {
             Spacer()
             
@@ -434,7 +395,7 @@ struct MainMenuView: View {
                         .font(.system(size: 18, weight: .semibold, design: .rounded))
                         .foregroundColor(AppColors.textPrimary)
                     
-                    if let currentUser = authViewModel.currentUser, currentUser.isAuthenticated {
+                    if let currentUser = viewStore.auth.currentUser, currentUser.isAuthenticated {
                         Text("아래 버튼을 눌러 메뉴를 등록해보세요")
                             .font(.system(size: 14, weight: .regular, design: .rounded))
                             .foregroundColor(AppColors.textSecondary)
@@ -444,10 +405,10 @@ struct MainMenuView: View {
                             .foregroundColor(AppColors.textSecondary)
                     }
                 }
-                        }
+            }
             
             // 메뉴 추가 버튼 (인증된 사용자) 또는 게스트나가기 버튼 (게스트 사용자)
-            if let currentUser = authViewModel.currentUser {
+            if let currentUser = viewStore.auth.currentUser {
                 if currentUser.isAuthenticated {
                     Button(action: { showMenuEditor = true }) {
                         HStack(spacing: 12) {
@@ -471,9 +432,7 @@ struct MainMenuView: View {
                     }
                 } else if currentUser.isGuest {
                     Button(action: {
-                        Task {
-                            await authViewModel.exitGuestMode()
-                        }
+                        viewStore.send(.auth(.exitGuestMode))
                     }) {
                         HStack(spacing: 12) {
                             Image(systemName: "arrow.left.circle.fill")
@@ -501,10 +460,126 @@ struct MainMenuView: View {
         }
         .padding(.horizontal, 20)
     }
+    
+    // MARK: - Helper Methods
+    private func dateString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateFormat = "M월 d일"
+        return formatter.string(from: date)
+    }
+    
+    private func weekdayString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateFormat = "E"
+        return formatter.string(from: date)
+    }
+    
+    // 이전 평일 찾기 (토/일 건너뛰기)
+    private func getPreviousWeekday(_ date: Date) -> Date {
+        let calendar = Calendar.current
+        var previousDate = date
+        
+        // 이전 평일 찾기 (토요일, 일요일 건너뛰기)
+        repeat {
+            let weekday = calendar.component(.weekday, from: previousDate)
+            // weekday: 1=일요일, 2=월요일, ..., 7=토요일
+            if weekday != 1 && weekday != 7 { // 일요일과 토요일이 아닌 경우
+                break
+            }
+            
+            // 주말이면 이전 날짜로
+            if let tempDate = calendar.date(byAdding: .day, value: -1, to: previousDate) {
+                previousDate = tempDate
+            } else {
+                break
+            }
+        } while true
+        
+        return previousDate
+    }
+    
+    // 다음 평일 찾기 (토/일 건너뛰기)
+    private func getNextWeekday(_ date: Date) -> Date {
+        let calendar = Calendar.current
+        var nextDate = date
+        
+        // 다음 평일 찾기 (토요일, 일요일 건너뛰기)
+        repeat {
+            let weekday = calendar.component(.weekday, from: nextDate)
+            // weekday: 1=일요일, 2=월요일, ..., 7=토요일
+            if weekday != 1 && weekday != 7 { // 일요일과 토요일이 아닌 경우
+                break
+            }
+            
+            // 주말이면 다음 날짜로
+            if let tempDate = calendar.date(byAdding: .day, value: 1, to: nextDate) {
+                nextDate = tempDate
+            } else {
+                break
+            }
+        } while true
+        
+        return nextDate
+    }
+    
+    // 주말 자동 처리: 토/일 → 다음 월요일로 이동 (기존 함수 유지)
+    private func getAdjustedDate(_ date: Date) -> Date {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: date)
+        
+        // 토요일(7) 또는 일요일(1)인 경우 다음 월요일로 이동
+        if weekday == 1 { // 일요일
+            return calendar.date(byAdding: .day, value: 1, to: date) ?? date
+        } else if weekday == 7 { // 토요일
+            return calendar.date(byAdding: .day, value: 2, to: date) ?? date
+        }
+        
+        return date
+    }
+    
+    // 주말일 경우 가장 가까운 월요일로 자동 설정
+    private func adjustWeekendDateIfNeeded(_ viewStore: ViewStoreOf<AppFeature>) {
+        let calendar = Calendar.current
+        let today = Date()
+        let weekday = calendar.component(.weekday, from: today)
+        
+        // 주말이면 가장 가까운 월요일로 설정
+        if weekday == 1 { // 일요일
+            // 다음 주 월요일
+            if let nextMonday = calendar.date(byAdding: .day, value: 1, to: today) {
+                let mondayDate = calendar.startOfDay(for: nextMonday)
+                if mondayDate != viewStore.menu.currentDate {
+                    print("📅 일요일 감지 - 다음 주 월요일로 자동 이동: \(mondayDate)")
+                    viewStore.send(.menu(.dateChanged(mondayDate)))
+                }
+            }
+        } else if weekday == 7 { // 토요일
+            // 다음 주 월요일
+            if let nextMonday = calendar.date(byAdding: .day, value: 2, to: today) {
+                let mondayDate = calendar.startOfDay(for: nextMonday)
+                if mondayDate != viewStore.menu.currentDate {
+                    print("📅 토요일 감지 - 다음 주 월요일로 자동 이동: \(mondayDate)")
+                    viewStore.send(.menu(.dateChanged(mondayDate)))
+                }
+            }
+        } else {
+            // 평일이면 오늘 날짜로 설정 (시간 제거)
+            let todayDate = calendar.startOfDay(for: today)
+            if todayDate != viewStore.menu.currentDate {
+                print("📅 평일 감지 - 오늘 날짜로 설정: \(todayDate)")
+                viewStore.send(.menu(.dateChanged(todayDate)))
+            }
+        }
+    }
 }
 
 #Preview {
-    MainMenuView()
-        .environmentObject(AuthViewModel())
+    MainMenuView(
+        store: Store(initialState: AppFeature.State()) {
+            AppFeature()
+        }
+    )
 }
 

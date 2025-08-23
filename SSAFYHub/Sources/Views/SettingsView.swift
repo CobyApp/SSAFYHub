@@ -1,62 +1,65 @@
 import SwiftUI
+import ComposableArchitecture
 import SharedModels
 
 struct SettingsView: View {
-    @EnvironmentObject var authViewModel: AuthViewModel
-    @EnvironmentObject var appCoordinator: AppCoordinator
+    let store: StoreOf<SettingsFeature>
     @Environment(\.dismiss) private var dismiss
-    
-    @State private var showingLogoutAlert = false
-    @State private var showingDeleteAccountAlert = false
+    @StateObject private var themeManager = ThemeManager()
     
     var body: some View {
-        VStack(spacing: 0) {
-            // 커스텀 헤더
-            customHeader
-            
-            ScrollView {
-                VStack(spacing: AppSpacing.xl) {
-                    // 캠퍼스 설정 섹션
-                    campusSection
-                    
-                    // 계정 관리 섹션 (인증된 사용자만 표시)
-                    if let currentUser = authViewModel.currentUser, !currentUser.isGuest {
-                        accountSection
-                    }
-                    
-                    // 게스트 모드 섹션 (게스트 사용자만 표시)
-                    if let currentUser = authViewModel.currentUser {
-                        if currentUser.isGuest {
-                            guestSection
+        WithViewStore(store, observe: { $0 }) { viewStore in
+            VStack(spacing: 0) {
+                // 커스텀 헤더
+                customHeader
+                
+                ScrollView {
+                    VStack(spacing: AppSpacing.xl) {
+                        // 캠퍼스 설정 섹션
+                        campusSection(viewStore)
+                        
+                        // 테마 설정 섹션
+                        themeSection
+                        
+                        // 계정 관리 섹션 (인증된 사용자만 표시)
+                        if let currentUser = viewStore.currentUser, !currentUser.isGuest {
+                            accountSection(viewStore)
                         }
+                        
+                        // 게스트 모드 섹션 (게스트 사용자만 표시)
+                        if let currentUser = viewStore.currentUser, currentUser.isGuest {
+                            guestSection(viewStore)
+                        }
+                        
+                        // 앱 정보 섹션
+                        appInfoSection
                     }
-                    
-                    // 앱 정보 섹션
-                    appInfoSection
+                    .padding(AppSpacing.lg)
                 }
-                .padding(AppSpacing.lg)
+                .background(AppColors.backgroundPrimary)
             }
-            .background(AppColors.backgroundPrimary)
-        }
-        .alert("로그아웃", isPresented: $showingLogoutAlert) {
-            Button("취소", role: .cancel) { }
-            Button("로그아웃", role: .destructive) {
-                Task {
-                    await authViewModel.signOut()
+            .onAppear {
+                viewStore.send(.onAppear)
+            }
+            .alert("로그아웃", isPresented: .constant(viewStore.showingSignOutAlert)) {
+                Button("취소", role: .cancel) {
+                    viewStore.send(.cancelSignOut)
+                }
+                Button("로그아웃", role: .destructive) {
+                    viewStore.send(.confirmSignOut)
+                }
+            } message: {
+                Text("정말 로그아웃 하시겠습니까?")
+            }
+            .alert("오류", isPresented: .constant(viewStore.errorMessage != nil)) {
+                Button("확인") {
+                    viewStore.send(.clearError)
+                }
+            } message: {
+                if let errorMessage = viewStore.errorMessage {
+                    Text(errorMessage)
                 }
             }
-        } message: {
-            Text("정말 로그아웃 하시겠습니까?")
-        }
-        .alert("회원탈퇴", isPresented: $showingDeleteAccountAlert) {
-            Button("취소", role: .cancel) { }
-            Button("회원탈퇴", role: .destructive) {
-                Task {
-                    await deleteAccount()
-                }
-            }
-        } message: {
-            Text("정말 회원탈퇴 하시겠습니까? 이 작업은 되돌릴 수 없습니다.")
         }
     }
     
@@ -66,7 +69,6 @@ struct SettingsView: View {
             // 상단 뒤로가기 버튼
             HStack {
                 Button(action: {
-                    // NavigationStack의 pop 기능 사용
                     dismiss()
                 }) {
                     Image(systemName: "chevron.left")
@@ -84,8 +86,56 @@ struct SettingsView: View {
         }
     }
     
+    // MARK: - Theme Section
+    private var themeSection: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.md) {
+            Text("테마 설정")
+                .font(AppTypography.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(AppColors.textPrimary)
+            
+            VStack(spacing: 0) {
+                ForEach(ThemeManager.ThemeMode.allCases, id: \.self) { themeMode in
+                    Button(action: {
+                        themeManager.setThemeMode(themeMode)
+                    }) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(themeMode.displayName)
+                                    .font(AppTypography.body)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(AppColors.textPrimary)
+                                
+                                Text("\(themeMode.displayName) 테마로 설정")
+                                    .font(AppTypography.caption)
+                                    .foregroundColor(AppColors.textSecondary)
+                            }
+                            
+                            Spacer()
+                            
+                            if themeManager.themeMode == themeMode {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(AppColors.accentPrimary)
+                            }
+                        }
+                        .padding(AppSpacing.md)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    if themeMode != ThemeManager.ThemeMode.allCases.last {
+                        Divider()
+                    }
+                }
+            }
+            .background(AppColors.surfaceSecondary)
+            .cornerRadius(12)
+        }
+    }
+    
     // MARK: - Campus Section
-    private var campusSection: some View {
+    @ViewBuilder
+    private func campusSection(_ viewStore: ViewStoreOf<SettingsFeature>) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Text("캠퍼스 설정")
                 .font(AppTypography.title3)
@@ -93,122 +143,135 @@ struct SettingsView: View {
             
             VStack(spacing: AppSpacing.sm) {
                 ForEach(Campus.allCases, id: \.self) { campus in
-                    Button(action: {
-                        if campus.isAvailable {
-                            Task {
-                                await changeUserCampus(to: campus)
-                            }
-                        }
-                    }) {
-                        HStack {
-                            Image(systemName: campus.isAvailable ? "building.2.fill" : "clock.circle.fill")
-                                .foregroundColor(campus.isAvailable ? AppColors.primary : AppColors.disabled)
-                                .frame(width: 24)
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(campus.displayName)
-                                    .font(AppTypography.body)
-                                    .foregroundColor(campus.isAvailable ? AppColors.textPrimary : AppColors.textSecondary)
-                                
-                                Text(campus.isAvailable ? "클릭하여 선택" : "준비중 (추후 확장 예정)")
-                                    .font(AppTypography.caption1)
-                                    .foregroundColor(AppColors.textSecondary)
-                            }
-                            
-                            Spacer()
-                            
-                            if campus.isAvailable {
-                                if let currentUser = authViewModel.currentUser, currentUser.campus == campus {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(AppColors.success)
-                                        .font(.system(size: 20))
-                                } else {
-                                    Image(systemName: "chevron.right")
-                                        .foregroundColor(AppColors.primary)
-                                        .font(.system(size: 16))
-                                }
-                            } else {
-                                Text("준비중")
-                                    .font(AppTypography.caption1)
-                                    .foregroundColor(AppColors.textSecondary)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 4)
-                                    .background(AppColors.disabled.opacity(0.1))
-                                    .cornerRadius(AppCornerRadius.small)
-                            }
-                        }
-                        .padding(AppSpacing.md)
-                        .background(
-                            RoundedRectangle(cornerRadius: AppCornerRadius.medium)
-                                .fill(campus.isAvailable ? AppColors.backgroundSecondary : AppColors.backgroundSecondary.opacity(0.5))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: AppCornerRadius.medium)
-                                .stroke(
-                                    campus.isAvailable ? AppColors.border : AppColors.disabled.opacity(0.3), 
-                                    lineWidth: 1
-                                )
-                        )
-                    }
-                    .disabled(!campus.isAvailable)
+                    campusRow(campus: campus, viewStore: viewStore)
                 }
             }
         }
     }
     
-    // MARK: - 캠퍼스 변경 함수
-    private func changeUserCampus(to newCampus: Campus) async {
-        guard let currentUser = authViewModel.currentUser else { return }
-        
-        print("🏫 캠퍼스 변경 시작: \(currentUser.campus.displayName) → \(newCampus.displayName)")
-        
-        do {
-            // SupabaseService를 통해 캠퍼스 업데이트
-            try await authViewModel.supabaseService.updateUserCampus(
-                userId: currentUser.id, 
-                campus: newCampus
-            )
+    // MARK: - Campus Row
+    @ViewBuilder
+    private func campusRow(campus: Campus, viewStore: ViewStoreOf<SettingsFeature>) -> some View {
+        Button(action: {
+            if campus.isAvailable {
+                // TODO: 캠퍼스 변경 로직 구현
+                print("🏫 캠퍼스 변경: \(campus.displayName)")
+            }
+        }) {
+            HStack {
+                campusIcon(campus: campus)
+                campusInfo(campus: campus)
+                Spacer()
+                campusStatus(campus: campus, viewStore: viewStore)
+            }
+            .padding(AppSpacing.md)
+            .background(campusBackground(campus: campus))
+            .overlay(campusBorder(campus: campus))
+        }
+        .disabled(!campus.isAvailable)
+    }
+    
+    // MARK: - Campus Icon
+    @ViewBuilder
+    private func campusIcon(campus: Campus) -> some View {
+        Image(systemName: campus.isAvailable ? "building.2.fill" : "clock.circle.fill")
+            .foregroundColor(campus.isAvailable ? AppColors.primary : AppColors.disabled)
+            .frame(width: 24)
+    }
+    
+    // MARK: - Campus Info
+    @ViewBuilder
+    private func campusInfo(campus: Campus) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(campus.displayName)
+                .font(AppTypography.body)
+                .foregroundColor(campus.isAvailable ? AppColors.textPrimary : AppColors.textSecondary)
             
-            print("✅ 캠퍼스 변경 성공")
-            
-            // 성공 메시지 표시 (필요시)
-            // TODO: 성공 알림 추가
-            
-        } catch {
-            print("❌ 캠퍼스 변경 실패: \(error)")
-            // TODO: 에러 알림 추가
+            Text(campus.isAvailable ? "클릭하여 선택" : "준비중 (추후 확장 예정)")
+                .font(AppTypography.caption)
+                .foregroundColor(AppColors.textSecondary)
         }
     }
     
-    // MARK: - 회원탈퇴 함수
-    private func deleteAccount() async {
-        guard let currentUser = authViewModel.currentUser else { return }
-        
-        print("🗑️ 회원탈퇴 시작: \(currentUser.email)")
-        
-        // AuthViewModel을 통해 회원탈퇴
-        await authViewModel.deleteAccount()
-        
-        // 회원탈퇴 성공/실패와 관계없이 로그인 화면으로 이동
-        // 실패 시에도 로그인 화면으로 가야 함
-        await MainActor.run {
-            appCoordinator.navigateToAuth()
+    // MARK: - Campus Status
+    @ViewBuilder
+    private func campusStatus(campus: Campus, viewStore: ViewStoreOf<SettingsFeature>) -> some View {
+        if campus.isAvailable {
+            if let currentUser = viewStore.currentUser, currentUser.campus == campus {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(AppColors.success)
+                    .font(.system(size: 20))
+            } else {
+                Image(systemName: "chevron.right")
+                    .foregroundColor(AppColors.primary)
+                    .font(.system(size: 16))
+            }
+        } else {
+            Text("준비중")
+                .font(AppTypography.caption)
+                .foregroundColor(AppColors.textSecondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(AppColors.disabled.opacity(0.1))
+                .cornerRadius(AppCornerRadius.small)
         }
-        
-        print("✅ 회원탈퇴 완료")
+    }
+    
+    // MARK: - Campus Background
+    @ViewBuilder
+    private func campusBackground(campus: Campus) -> some View {
+        RoundedRectangle(cornerRadius: AppCornerRadius.medium)
+            .fill(campus.isAvailable ? AppColors.backgroundSecondary : AppColors.backgroundSecondary.opacity(0.5))
+    }
+    
+    // MARK: - Campus Border
+    @ViewBuilder
+    private func campusBorder(campus: Campus) -> some View {
+        RoundedRectangle(cornerRadius: AppCornerRadius.medium)
+            .stroke(
+                campus.isAvailable ? AppColors.border : AppColors.disabled.opacity(0.3), 
+                lineWidth: 1
+            )
     }
     
     // MARK: - Account Section
-    private var accountSection: some View {
+    @ViewBuilder
+    private func accountSection(_ viewStore: ViewStoreOf<SettingsFeature>) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Text("계정 관리")
                 .font(AppTypography.title3)
+                .fontWeight(.semibold)
                 .foregroundColor(AppColors.textPrimary)
             
-            VStack(spacing: AppSpacing.sm) {
+            VStack(spacing: 0) {
+                // 사용자 정보
+                if let currentUser = viewStore.currentUser {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("로그인 정보")
+                                .font(AppTypography.body)
+                                .fontWeight(.medium)
+                                .foregroundColor(AppColors.textPrimary)
+                            
+                            Text(currentUser.email)
+                                .font(AppTypography.caption)
+                                .foregroundColor(AppColors.textSecondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(AppColors.accentPrimary)
+                    }
+                    .padding(AppSpacing.md)
+                    
+                    Divider()
+                }
+                
                 // 로그아웃 버튼
                 Button(action: {
-                    showingLogoutAlert = true
+                    viewStore.send(.signOutTapped)
                 }) {
                     HStack {
                         Image(systemName: "rectangle.portrait.and.arrow.right")
@@ -221,44 +284,28 @@ struct SettingsView: View {
                         
                         Spacer()
                         
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(AppColors.textTertiary)
-                            .font(.caption)
+                        if viewStore.isSigningOut {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(AppColors.textTertiary)
+                                .font(.caption)
+                        }
                     }
                     .padding(AppSpacing.md)
-                    .background(AppColors.backgroundSecondary)
-                    .cornerRadius(AppCornerRadius.medium)
                 }
-                
-                // 회원탈퇴 버튼
-                Button(action: {
-                    showingDeleteAccountAlert = true
-                }) {
-                    HStack {
-                        Image(systemName: "person.crop.circle.badge.minus")
-                            .foregroundColor(AppColors.error)
-                            .frame(width: 24)
-                        
-                        Text("회원탈퇴")
-                            .font(AppTypography.body)
-                            .foregroundColor(AppColors.error)
-                        
-                        Spacer()
-                        
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(AppColors.textTertiary)
-                            .font(.caption)
-                    }
-                    .padding(AppSpacing.md)
-                    .background(AppColors.backgroundSecondary)
-                    .cornerRadius(AppCornerRadius.medium)
-                }
+                .disabled(viewStore.isSigningOut)
+                .buttonStyle(PlainButtonStyle())
             }
+            .background(AppColors.surfaceSecondary)
+            .cornerRadius(12)
         }
     }
     
     // MARK: - Guest Section
-    private var guestSection: some View {
+    @ViewBuilder
+    private func guestSection(_ viewStore: ViewStoreOf<SettingsFeature>) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Text("게스트 모드")
                 .font(AppTypography.title3)
@@ -266,10 +313,8 @@ struct SettingsView: View {
             
             VStack(spacing: AppSpacing.sm) {
                 Button(action: {
-                    // 게스트 모드 종료 후 AuthView로 이동
-                    Task {
-                        await authViewModel.exitGuestMode()
-                    }
+                    // 게스트 모드 종료
+                    viewStore.send(.exitGuestMode)
                 }) {
                     HStack {
                         Image(systemName: "arrow.left.circle.fill")
@@ -287,10 +332,11 @@ struct SettingsView: View {
                             .font(.caption)
                     }
                     .padding(AppSpacing.md)
-                    .background(AppColors.backgroundSecondary)
-                    .cornerRadius(AppCornerRadius.medium)
                 }
+                .buttonStyle(PlainButtonStyle())
             }
+            .background(AppColors.surfaceSecondary)
+            .cornerRadius(12)
         }
     }
     
@@ -299,6 +345,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Text("앱 정보")
                 .font(AppTypography.title3)
+                .fontWeight(.semibold)
                 .foregroundColor(AppColors.textPrimary)
             
             VStack(spacing: AppSpacing.sm) {
@@ -345,8 +392,9 @@ struct SettingsView: View {
 }
 
 #Preview {
-    SettingsView()
-        .environmentObject(AuthViewModel())
-        .environmentObject(AppCoordinator())
+    SettingsView(
+        store: Store(initialState: SettingsFeature.State()) {
+            SettingsFeature()
+        }
+    )
 }
-

@@ -42,6 +42,13 @@ struct AppColors {
     static let disabled = Color(.systemGray3)
     static let border = Color(.separator)
     
+    // 추가 UI 색상
+    static let accentPrimary = ssafyBlue
+    static let accentSecondary = success
+    static let surfacePrimary = Color(.systemBackground)
+    static let surfaceSecondary = Color(.secondarySystemBackground)
+    static let caption = Color(.secondaryLabel)
+    
     // 위젯 전용 색상 (고정 색상)
     static let widgetABackground = Color(red: 0.2, green: 0.6, blue: 1.0)  // A타입: 파란색
     static let widgetBBackground = Color(red: 0.2, green: 0.8, blue: 0.4)  // B타입: 초록색
@@ -73,24 +80,20 @@ struct AppColors {
 }
 
 // MARK: - Typography System
-struct AppTypography {
-    // 프리텐다드 폰트 패밀리
-    static let fontFamily = "Pretendard"
-    
-    // 제목 스타일
-    static let largeTitle = Font.custom(fontFamily, size: 34).weight(.bold)
-    static let title1 = Font.custom(fontFamily, size: 28).weight(.bold)
-    static let title2 = Font.custom(fontFamily, size: 22).weight(.semibold)
-    static let title3 = Font.custom(fontFamily, size: 20).weight(.semibold)
-    
-    // 본문 스타일
-    static let headline = Font.custom(fontFamily, size: 17).weight(.semibold)
-    static let body = Font.custom(fontFamily, size: 17).weight(.regular)
-    static let callout = Font.custom(fontFamily, size: 16).weight(.regular)
-    static let subheadline = Font.custom(fontFamily, size: 15).weight(.regular)
-    static let footnote = Font.custom(fontFamily, size: 13).weight(.regular)
-    static let caption1 = Font.custom(fontFamily, size: 12).weight(.regular)
-    static let caption2 = Font.custom(fontFamily, size: 11).weight(.regular)
+
+
+// MARK: - Typography System
+public struct AppTypography {
+    public static let title = Font.largeTitle.weight(.bold)
+    public static let title2 = Font.title2.weight(.semibold)
+    public static let title3 = Font.title3.weight(.semibold)
+    public static let headline = Font.headline.weight(.semibold)
+    public static let body = Font.body
+    public static let bodyMedium = Font.body.weight(.medium)
+    public static let subheadline = Font.subheadline
+    public static let footnote = Font.footnote
+    public static let small = Font.caption
+    public static let caption = Font.caption
 }
 
 // MARK: - Spacing System

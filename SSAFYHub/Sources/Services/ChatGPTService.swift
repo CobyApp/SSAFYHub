@@ -2,14 +2,14 @@ import Foundation
 import UIKit
 import SharedModels
 
-class ChatGPTService: ObservableObject {
+public class ChatGPTService: ObservableObject {
     static let shared = ChatGPTService()
     
     // MARK: - Properties
     private let apiKey: String
     private let baseURL: String
     
-    private init() {
+    public init() {
         // APIKeyManager에서 OpenAI 설정 가져오기
         let apiKeyManager = APIKeyManager.shared
         

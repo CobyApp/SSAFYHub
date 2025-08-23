@@ -95,7 +95,7 @@ public enum UserType: String, Codable, CaseIterable {
 }
 
 // MARK: - AppUser Model
-public struct AppUser: Codable, Identifiable {
+public struct AppUser: Codable, Identifiable, Equatable {
     public let id: String
     public let email: String
     public let campus: Campus
@@ -135,7 +135,7 @@ public struct AppUser: Codable, Identifiable {
 }
 
 // MARK: - MealMenu Model
-public struct MealMenu: Codable, Identifiable {
+public struct MealMenu: Codable, Identifiable, Equatable {
     public let id: String
     public let date: Date
     public let campus: Campus

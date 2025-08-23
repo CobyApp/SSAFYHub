@@ -4,7 +4,7 @@ import KeychainAccess
 import CryptoKit
 
 @MainActor
-class AppleSignInService: NSObject, ObservableObject, Sendable {
+public class AppleSignInService: NSObject, ObservableObject, Sendable {
     static let shared = AppleSignInService()
     
     private let keychain = Keychain(service: "com.coby.ssafyhub.apple")
@@ -12,7 +12,7 @@ class AppleSignInService: NSObject, ObservableObject, Sendable {
     // nonce 관리를 위한 프로퍼티
     private var currentNonce: String?
     
-    private override init() {
+    public override init() {
         super.init()
     }
     
