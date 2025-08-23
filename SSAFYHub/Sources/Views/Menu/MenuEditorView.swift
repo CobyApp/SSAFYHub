@@ -7,50 +7,56 @@ struct MenuEditorView: View {
     let store: StoreOf<MenuEditorFeature>
     @Environment(\.dismiss) private var dismiss
     @State private var saveCompletedTrigger = false
+    @State private var selectedImage: UIImage?
     
     var body: some View {
         WithViewStore(store, observe: { $0 }) { viewStore in
-            NavigationView {
+            ZStack {
                 VStack(spacing: 0) {
-                    // 헤더
-                    headerView(viewStore)
+                    // 커스텀 헤더
+                    customHeader(viewStore)
                     
                     ScrollView {
-                        VStack(spacing: 20) {
-                            // 주간 네비게이션
-                            weekNavigationView(viewStore)
+                        VStack(spacing: AppSpacing.xl) {
+                            // 날짜 선택 헤더
+                            dateSelectionHeader(viewStore)
                             
-                            // AI 메뉴 인식 버튼들
-                            aiMenuRecognitionView(viewStore)
+                            // OCR 버튼 (주간 모드에서만 표시)
+                            ocrButtonsView(viewStore)
                             
-                            // 메뉴 입력 폼
-                            menuInputView(viewStore)
+                            // 주간 메뉴 입력 섹션
+                            weeklyMenuSection(viewStore)
                             
-                            Spacer(minLength: 100)
+                            // 저장 버튼
+                            saveButtonView(viewStore)
                         }
-                        .padding(.horizontal, 20)
+                        .padding(AppSpacing.lg)
                     }
-                    
-                    // 저장 버튼
-                    saveButtonView(viewStore)
-                }
-                .background(AppColors.backgroundPrimary)
-                .navigationBarHidden(true)
-                .onAppear {
-                    viewStore.send(.onAppear)
-                    // 주 시작일을 월요일로 자동 설정
-                    let monday = getMondayOfCurrentWeek()
-                    if monday != viewStore.selectedWeekStart {
-                        viewStore.send(.weekStartChanged(monday))
+                    .background(AppColors.backgroundPrimary)
+                    .onTapGesture {
+                        // 키보드가 떠있을 때 다른 곳을 터치하면 키보드 닫기
+                        hideKeyboard()
                     }
                 }
-                .onChange(of: viewStore.shouldDismiss) { _, shouldDismiss in
-                    // 저장이 완료되면 팝업을 닫음
-                    if shouldDismiss {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            dismiss()
-                        }
-                    }
+                
+                // 로딩 오버레이 (사진 분석 중이거나 저장 중일 때 표시)
+                if viewStore.isAnalyzingImage || viewStore.isSaving {
+                    loadingOverlay(viewStore)
+                }
+            }
+            .onAppear {
+                viewStore.send(.onAppear)
+                // 전달받은 날짜로 주 시작일 초기화
+                let calendar = Calendar.current
+                let targetDate = Date() // 현재 날짜 사용
+                
+                // 해당 날짜가 포함된 주의 월요일을 찾기
+                let weekday = calendar.component(.weekday, from: targetDate)
+                let daysFromMonday = weekday == 1 ? 6 : weekday - 2 // 일요일이면 6일 전, 월요일이면 0일 전
+                
+                if let monday = calendar.date(byAdding: .day, value: -daysFromMonday, to: targetDate) {
+                    viewStore.send(.weekStartChanged(monday))
+                    print("📅 주 시작일 설정: \(monday.formatted(date: .abbreviated, time: .omitted))")
                 }
             }
             .alert("저장 실패", isPresented: .constant(viewStore.errorMessage != nil)) {
@@ -62,363 +68,461 @@ struct MenuEditorView: View {
                     Text(errorMessage)
                 }
             }
-            .sheet(isPresented: .constant(viewStore.showImagePicker)) {
-                ImagePickerRepresentable(
-                    sourceType: viewStore.imagePickerSourceType == .camera ? .camera : .photoLibrary,
-                    onImagePicked: { image in
-                        if let imageData = image.jpegData(compressionQuality: 0.8) {
-                            viewStore.send(.analyzeImageData(imageData))
-                        } else {
-                            viewStore.send(.imageAnalysisFailed("이미지를 처리할 수 없습니다"))
-                        }
-                    },
-                    onCancel: {
-                        viewStore.send(.hideImagePicker)
+            .alert("메뉴 덮어쓰기", isPresented: .constant(false)) {
+                Button("저장", role: .destructive) {
+                    viewStore.send(.saveWeeklyMenu)
+                }
+                Button("취소", role: .cancel) { }
+            } message: {
+                Text("기존 메뉴가 있을 경우 데이터가 덮어쓰기 됩니다.\n저장하시겠습니까?")
+            }
+            .fullScreenCover(isPresented: .constant(viewStore.showImagePicker && viewStore.imagePickerSourceType == .camera)) {
+                CameraView(selectedImage: $selectedImage, onImageSelected: { image in
+                    if let image = image {
+                        processSelectedImage(image, viewStore)
                     }
-                )
+                    selectedImage = nil
+                    viewStore.send(.hideImagePicker)
+                })
+                .ignoresSafeArea()
+            }
+            .sheet(isPresented: .constant(viewStore.showImagePicker && viewStore.imagePickerSourceType == .photoLibrary)) {
+                ImagePicker(selectedImage: $selectedImage, onImageSelected: { image in
+                    if let image = image {
+                        processSelectedImage(image, viewStore)
+                    }
+                    selectedImage = nil
+                    viewStore.send(.hideImagePicker)
+                })
             }
         }
     }
     
-    // MARK: - Header View
+    // MARK: - Custom Header
     @ViewBuilder
-    private func headerView(_ viewStore: ViewStoreOf<MenuEditorFeature>) -> some View {
-        HStack {
-            Button("취소") {
-                dismiss()
-            }
-            .font(AppTypography.body)
-            .foregroundColor(AppColors.textPrimary)
-            
-            Spacer()
-            
-            Text("메뉴 등록")
-                .font(AppTypography.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(AppColors.textPrimary)
-            
-            Spacer()
-            
-            if viewStore.isSaving {
-                ProgressView()
-                    .scaleEffect(0.8)
-            } else {
-                Color.clear
-                    .frame(width: 20, height: 20)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-        .background(AppColors.surfacePrimary)
-    }
-    
-    // MARK: - Week Navigation View
-    @ViewBuilder
-    private func weekNavigationView(_ viewStore: ViewStoreOf<MenuEditorFeature>) -> some View {
-        HStack {
-            Button(action: {
-                let previousWeek = Calendar.current.date(byAdding: .weekOfYear, value: -1, to: viewStore.selectedWeekStart) ?? Date()
-                viewStore.send(.weekStartChanged(previousWeek))
-            }) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(AppColors.textPrimary)
-                    .frame(width: 44, height: 44)
-                    .background(AppColors.surfaceSecondary)
-                    .cornerRadius(22)
-            }
-            
-            Spacer()
-            
-            Text(weekRangeString(from: viewStore.selectedWeekStart))
-                .font(AppTypography.title3)
-                .fontWeight(.semibold)
-                .foregroundColor(AppColors.textPrimary)
-            
-            Spacer()
-            
-            Button(action: {
-                let nextWeek = Calendar.current.date(byAdding: .weekOfYear, value: 1, to: viewStore.selectedWeekStart) ?? Date()
-                viewStore.send(.weekStartChanged(nextWeek))
-            }) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(AppColors.textPrimary)
-                    .frame(width: 44, height: 44)
-                    .background(AppColors.surfaceSecondary)
-                    .cornerRadius(22)
-            }
-        }
-        .padding(.horizontal, 20)
-    }
-    
-    // MARK: - Menu Input View
-    @ViewBuilder
-    private func menuInputView(_ viewStore: ViewStoreOf<MenuEditorFeature>) -> some View {
-        VStack(spacing: 16) {
-            // 1일차 (월요일)
-            let date1 = Calendar.current.date(byAdding: .day, value: 0, to: viewStore.selectedWeekStart) ?? Date()
-            menuDayView(viewStore: viewStore, dayIndex: 0, date: date1)
-            
-            // 2일차 (화요일)
-            let date2 = Calendar.current.date(byAdding: .day, value: 1, to: viewStore.selectedWeekStart) ?? Date()
-            menuDayView(viewStore: viewStore, dayIndex: 1, date: date2)
-            
-            // 3일차 (수요일)
-            let date3 = Calendar.current.date(byAdding: .day, value: 2, to: viewStore.selectedWeekStart) ?? Date()
-            menuDayView(viewStore: viewStore, dayIndex: 2, date: date3)
-            
-            // 4일차 (목요일)
-            let date4 = Calendar.current.date(byAdding: .day, value: 3, to: viewStore.selectedWeekStart) ?? Date()
-            menuDayView(viewStore: viewStore, dayIndex: 3, date: date4)
-            
-            // 5일차 (금요일)
-            let date5 = Calendar.current.date(byAdding: .day, value: 4, to: viewStore.selectedWeekStart) ?? Date()
-            menuDayView(viewStore: viewStore, dayIndex: 4, date: date5)
-        }
-    }
-    
-    @ViewBuilder
-    private func menuDayView(viewStore: ViewStoreOf<MenuEditorFeature>, dayIndex: Int, date: Date) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private func customHeader(_ viewStore: ViewStoreOf<MenuEditorFeature>) -> some View {
+        VStack(spacing: 0) {
+            // 상단 뒤로가기 버튼과 제목
             HStack {
-                Text(dayString(from: date))
-                    .font(AppTypography.title3)
-                    .fontWeight(.semibold)
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(AppColors.textSecondary)
+                        .frame(width: 44, height: 44)
+                        .background(Color(.tertiarySystemBackground))
+                        .cornerRadius(22)
+                }
+                
+                Spacer()
+                
+                Text("주간 메뉴 등록")
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .foregroundColor(AppColors.textPrimary)
                 
                 Spacer()
-            }
-            
-            // A타입 메뉴
-            VStack(alignment: .leading, spacing: 8) {
-                Text("A타입")
-                    .font(AppTypography.body)
-                    .fontWeight(.medium)
-                    .foregroundColor(AppColors.accentPrimary)
                 
-                TextField("A타입 메뉴를 입력하세요", text: .init(
-                    get: { 
-                        let aItems = viewStore.weeklyMenuItems[dayIndex].filter { $0.mealType == .a }
-                        return aItems.first?.text ?? ""
-                    },
-                    set: { newValue in
-                        let aItems = viewStore.weeklyMenuItems[dayIndex].filter { $0.mealType == .a }
-                        if let firstAItem = aItems.first {
-                            viewStore.send(.itemChanged(dayIndex: dayIndex, itemId: firstAItem.id, text: newValue))
-                        }
-                    }
-                ))
-                .textFieldStyle(RoundedBorderTextFieldStyle())
+                // 오른쪽 여백을 위한 투명 버튼
+                Button(action: {}) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(.clear)
+                        .frame(width: 44, height: 44)
+                }
+                .disabled(true)
             }
-            
-            // B타입 메뉴
-            VStack(alignment: .leading, spacing: 8) {
-                Text("B타입")
-                    .font(AppTypography.body)
-                    .fontWeight(.medium)
-                    .foregroundColor(AppColors.accentSecondary)
-                
-                TextField("B타입 메뉴를 입력하세요", text: .init(
-                    get: { 
-                        let bItems = viewStore.weeklyMenuItems[dayIndex].filter { $0.mealType == .b }
-                        return bItems.first?.text ?? ""
-                    },
-                    set: { newValue in
-                        let bItems = viewStore.weeklyMenuItems[dayIndex].filter { $0.mealType == .b }
-                        if let firstBItem = bItems.first {
-                            viewStore.send(.itemChanged(dayIndex: dayIndex, itemId: firstBItem.id, text: newValue))
-                        }
-                    }
-                ))
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-            }
+            .padding(.horizontal, 20)
+            .padding(.top, 10)
         }
-        .padding(16)
-        .background(AppColors.surfaceSecondary)
-        .cornerRadius(12)
     }
     
-    // MARK: - AI Menu Recognition View
+    // MARK: - Date Selection Header
     @ViewBuilder
-    private func aiMenuRecognitionView(_ viewStore: ViewStoreOf<MenuEditorFeature>) -> some View {
-        VStack(spacing: 12) {
+    private func dateSelectionHeader(_ viewStore: ViewStoreOf<MenuEditorFeature>) -> some View {
+        VStack(spacing: AppSpacing.md) {
             HStack {
-                Image(systemName: "camera.aperture")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(AppColors.accentPrimary)
+                Button(action: {
+                    let calendar = Calendar.current
+                    if let newWeekStart = calendar.date(byAdding: .weekOfYear, value: -1, to: viewStore.selectedWeekStart) {
+                        viewStore.send(.weekStartChanged(newWeekStart))
+                    }
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(AppColors.primary)
+                        .frame(width: 40, height: 40)
+                        .background(AppColors.primary.opacity(0.1))
+                        .cornerRadius(AppCornerRadius.pill)
+                }
+                
+                Spacer()
+                
+                Text(weekRangeText(from: viewStore.selectedWeekStart))
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundColor(AppColors.textPrimary)
+                
+                Spacer()
+                
+                Button(action: {
+                    let calendar = Calendar.current
+                    if let newWeekStart = calendar.date(byAdding: .weekOfYear, value: 1, to: viewStore.selectedWeekStart) {
+                        viewStore.send(.weekStartChanged(newWeekStart))
+                    }
+                }) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(AppColors.primary)
+                        .frame(width: 40, height: 40)
+                        .background(AppColors.primary.opacity(0.1))
+                        .cornerRadius(AppCornerRadius.pill)
+                }
+            }
+        }
+        .padding(AppSpacing.lg)
+        .background(AppColors.backgroundSecondary)
+        .cornerRadius(AppCornerRadius.large)
+        .shadow(color: AppShadow.small.color, radius: AppShadow.small.radius, x: AppShadow.small.x, y: AppShadow.small.y)
+    }
+    
+    // 주 범위 텍스트 (월~금)
+    private func weekRangeText(from startDate: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ko_KR")
+        formatter.dateFormat = "M월 d일"
+        
+        let calendar = Calendar.current
+        let monday = startDate
+        let friday = calendar.date(byAdding: .day, value: 4, to: startDate) ?? startDate
+        
+        return "\(formatter.string(from: monday)) ~ \(formatter.string(from: friday))"
+    }
+    
+    // MARK: - OCR Buttons View
+    @ViewBuilder
+    private func ocrButtonsView(_ viewStore: ViewStoreOf<MenuEditorFeature>) -> some View {
+        VStack(spacing: AppSpacing.lg) {
+            HStack(spacing: AppSpacing.sm) {
+                Image(systemName: "camera.viewfinder")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(AppColors.primary)
                 
                 Text("AI 메뉴 인식")
-                    .font(AppTypography.body)
-                    .fontWeight(.semibold)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .foregroundColor(AppColors.textPrimary)
-                
-                Spacer()
-                
-                if viewStore.isAnalyzingImage {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                }
             }
             
-            Text("식단표 사진을 촬영하거나 선택하면 AI가 자동으로 메뉴를 인식합니다")
-                .font(AppTypography.caption)
+            Text("주간 식단표 사진을 촬영하거나 선택하면\nAI가 자동으로 메뉴를 인식합니다")
+                .font(.system(size: 14, weight: .regular, design: .rounded))
                 .foregroundColor(AppColors.textSecondary)
-                .multilineTextAlignment(.leading)
+                .multilineTextAlignment(.center)
+                .lineSpacing(2)
             
-            HStack(spacing: 12) {
+            HStack(spacing: AppSpacing.lg) {
                 // 카메라 버튼
-                Button(action: {
+                Button(action: { 
                     viewStore.send(.showImagePicker(.camera))
                 }) {
-                    HStack {
-                        Image(systemName: "camera")
-                        Text("사진 촬영")
+                    HStack(spacing: AppSpacing.sm) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 18, weight: .medium))
+                        Text("카메라")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
                     }
-                    .font(AppTypography.body)
-                    .fontWeight(.medium)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(AppColors.accentPrimary)
-                    .cornerRadius(8)
+                    .frame(height: 52)
+                    .background(AppColors.primary)
+                    .cornerRadius(16)
+                    .shadow(color: AppShadow.small.color, radius: AppShadow.small.radius, x: AppShadow.small.x, y: AppShadow.small.y)
                 }
-                .disabled(viewStore.isAnalyzingImage)
                 
                 // 앨범 버튼
-                Button(action: {
+                Button(action: { 
                     viewStore.send(.showImagePicker(.photoLibrary))
                 }) {
-                    HStack {
-                        Image(systemName: "photo")
-                        Text("앨범 선택")
+                    HStack(spacing: AppSpacing.sm) {
+                        Image(systemName: "photo.fill")
+                            .font(.system(size: 18, weight: .medium))
+                        Text("앨범")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
                     }
-                    .font(AppTypography.body)
-                    .fontWeight(.medium)
-                    .foregroundColor(.white)
+                    .foregroundColor(AppColors.primary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(AppColors.accentSecondary)
-                    .cornerRadius(8)
+                    .frame(height: 52)
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(AppColors.primary, lineWidth: 1.5)
+                    )
+                    .shadow(color: AppShadow.small.color, radius: AppShadow.small.radius, x: AppShadow.small.x, y: AppShadow.small.y)
                 }
-                .disabled(viewStore.isAnalyzingImage)
             }
         }
-        .padding(16)
-        .background(AppColors.surfaceSecondary)
-        .cornerRadius(12)
+        .padding(AppSpacing.lg)
+        .background(AppColors.backgroundSecondary)
+        .cornerRadius(AppCornerRadius.large)
+        .shadow(color: AppShadow.small.color, radius: AppShadow.small.radius, x: AppShadow.small.x, y: AppShadow.small.y)
+        .alert("권한 필요", isPresented: .constant(false)) {
+            Button("설정으로 이동") {
+                if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsUrl)
+                }
+            }
+            Button("취소", role: .cancel) { }
+        } message: {
+            Text("카메라 또는 앨범 접근 권한이 필요합니다. 설정에서 허용해주세요.")
+        }
+    }
+    
+    // MARK: - Weekly Menu Section
+    @ViewBuilder
+    private func weeklyMenuSection(_ viewStore: ViewStoreOf<MenuEditorFeature>) -> some View {
+        VStack(spacing: AppSpacing.lg) {
+            // 주간 메뉴 입력 폼
+            ForEach(0..<5, id: \.self) { dayIndex in
+                VStack(alignment: .leading, spacing: AppSpacing.md) {
+                    // 날짜 헤더
+                    HStack {
+                        let calendar = Calendar.current
+                        let date = calendar.date(byAdding: .day, value: dayIndex, to: viewStore.selectedWeekStart) ?? Date()
+                        Text("\(date.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(AppColors.textPrimary)
+                        
+                        Spacer()
+                        
+                        // 해당 날짜의 메뉴 개수 표시
+                        let dayItems = viewStore.weeklyMenuItems[dayIndex]
+                        let totalItems = dayItems.filter { !$0.text.isEmpty }.count
+                        if totalItems > 0 {
+                            Text("\(totalItems)개")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundColor(AppColors.textSecondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(AppColors.primary.opacity(0.1))
+                                .cornerRadius(8)
+                        }
+                    }
+                    
+                    // A타입 메뉴
+                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                        HStack {
+                            Text("A타입")
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundColor(AppColors.textSecondary)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                viewStore.send(.addMenuItem(dayIndex: dayIndex, mealType: .a))
+                            }) {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundColor(AppColors.primary)
+                                    .font(.system(size: 18))
+                            }
+                        }
+                        
+                        VStack(spacing: AppSpacing.xs) {
+                            let aItems = viewStore.weeklyMenuItems[dayIndex].filter { $0.mealType == .a }
+                            ForEach(aItems.indices, id: \.self) { itemIndex in
+                                HStack(spacing: 8) {
+                                    TextField("메뉴를 입력하세요", text: .init(
+                                        get: { aItems[itemIndex].text },
+                                        set: { newValue in
+                                            viewStore.send(.itemChanged(dayIndex: dayIndex, itemId: aItems[itemIndex].id, text: newValue))
+                                        }
+                                    ))
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                                    
+                                    Button(action: {
+                                        viewStore.send(.removeMenuItem(dayIndex: dayIndex, itemId: aItems[itemIndex].id))
+                                    }) {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundColor(AppColors.error)
+                                            .font(.system(size: 16))
+                                    }
+                                    .disabled(aItems.count <= 1)
+                                }
+                            }
+                        }
+                    }
+                    
+                    // B타입 메뉴
+                    VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                        HStack {
+                            Text("B타입")
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundColor(AppColors.textSecondary)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                viewStore.send(.addMenuItem(dayIndex: dayIndex, mealType: .b))
+                            }) {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundColor(AppColors.primary)
+                                    .font(.system(size: 18))
+                            }
+                        }
+                        
+                        VStack(spacing: AppSpacing.xs) {
+                            let bItems = viewStore.weeklyMenuItems[dayIndex].filter { $0.mealType == .b }
+                            ForEach(bItems.indices, id: \.self) { itemIndex in
+                                HStack(spacing: 8) {
+                                    TextField("메뉴를 입력하세요", text: .init(
+                                        get: { bItems[itemIndex].text },
+                                        set: { newValue in
+                                            viewStore.send(.itemChanged(dayIndex: dayIndex, itemId: bItems[itemIndex].id, text: newValue))
+                                        }
+                                    ))
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                                    
+                                    Button(action: {
+                                        viewStore.send(.removeMenuItem(dayIndex: dayIndex, itemId: bItems[itemIndex].id))
+                                    }) {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundColor(AppColors.error)
+                                            .font(.system(size: 16))
+                                    }
+                                    .disabled(bItems.count <= 1)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(AppSpacing.lg)
+                .background(AppColors.backgroundSecondary)
+                .cornerRadius(AppCornerRadius.medium)
+                .shadow(color: AppShadow.small.color, radius: AppShadow.small.radius, x: AppShadow.small.x, y: AppShadow.small.y)
+            }
+        }
+    }
+    
+    // MARK: - Loading Overlay
+    @ViewBuilder
+    private func loadingOverlay(_ viewStore: ViewStoreOf<MenuEditorFeature>) -> some View {
+        ZStack {
+            // 반투명 배경
+            Color.black.opacity(0.7)
+                .ignoresSafeArea()
+            
+            // 로딩 컨텐츠
+            VStack(spacing: AppSpacing.xl) {
+                // 로딩 스피너
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .tint(AppColors.primary)
+                
+                VStack(spacing: AppSpacing.md) {
+                    if viewStore.isAnalyzingImage {
+                        Text("AI가 메뉴를 분석하고 있습니다...")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(AppColors.textPrimary)
+                            .multilineTextAlignment(.center)
+                        
+                        Text("잠시만 기다려주세요")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(AppColors.textSecondary)
+                            .multilineTextAlignment(.center)
+                    } else if viewStore.isSaving {
+                        Text("메뉴를 저장하고 있습니다...")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(AppColors.textPrimary)
+                            .multilineTextAlignment(.center)
+                        
+                        Text("잠시만 기다려주세요")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(AppColors.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                
+                // 진행 상태 표시 (AI 분석 중일 때만)
+                if viewStore.isAnalyzingImage {
+                    HStack(spacing: AppSpacing.sm) {
+                        ForEach(0..<3) { index in
+                            Circle()
+                                .fill(AppColors.primary.opacity(0.6))
+                                .frame(width: 8, height: 8)
+                                .scaleEffect(index == 0 ? 1.2 : 1.0)
+                                .animation(
+                                    .easeInOut(duration: 0.6)
+                                    .repeatForever(autoreverses: true)
+                                    .delay(Double(index) * 0.2),
+                                    value: viewStore.isAnalyzingImage
+                                )
+                        }
+                    }
+                }
+            }
+            .padding(AppSpacing.xl)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 10)
+            )
+        }
+        .allowsHitTesting(true) // 터치 이벤트 차단
     }
     
     // MARK: - Save Button View
     @ViewBuilder
     private func saveButtonView(_ viewStore: ViewStoreOf<MenuEditorFeature>) -> some View {
-        VStack(spacing: 0) {
-            Divider()
-            
-            Button(action: {
-                viewStore.send(.saveWeeklyMenu)
-            }) {
-                HStack {
-                    if viewStore.isSaving {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(0.8)
-                    }
-                    
-                    Text(viewStore.isSaving ? "저장 중..." : "주간 메뉴 저장")
-                        .font(AppTypography.body)
-                        .fontWeight(.semibold)
+        Button(action: {
+            viewStore.send(.saveWeeklyMenu)
+        }) {
+            HStack(spacing: 12) {
+                if viewStore.isSaving {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .tint(.white)
+                } else {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20, weight: .medium))
                 }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background(AppColors.accentPrimary)
-                .cornerRadius(12)
+                Text(viewStore.isSaving ? "저장 중..." : "저장")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
             }
-            .disabled(viewStore.isSaving)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background(hasValidMenuData(viewStore) ? AppColors.primary : AppColors.textTertiary)
+            .cornerRadius(16)
+            .shadow(
+                color: hasValidMenuData(viewStore) ? AppColors.primary.opacity(0.3) : Color.clear,
+                radius: 8,
+                x: 0,
+                y: 4
+            )
         }
-        .background(AppColors.surfacePrimary)
+        .disabled(!hasValidMenuData(viewStore) || viewStore.isSaving)
+        .scaleEffect(hasValidMenuData(viewStore) ? 1.0 : 0.98)
+        .animation(.easeInOut(duration: 0.2), value: hasValidMenuData(viewStore))
+    }
+    
+    // MARK: - Menu Validation
+    private func hasValidMenuData(_ viewStore: ViewStoreOf<MenuEditorFeature>) -> Bool {
+        // 주간 모드: 최소 하나의 메뉴라도 실제 내용이 입력되어야 함
+        return viewStore.weeklyMenuItems.enumerated().contains { index, items in
+            let hasValidItems = items.contains { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            return hasValidItems
+        }
     }
     
     // MARK: - Helper Methods
-    private func weekRangeString(from startDate: Date) -> String {
-        let endDate = Calendar.current.date(byAdding: .day, value: 4, to: startDate) ?? startDate
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ko_KR")
-        formatter.dateFormat = "M월 d일"
-        
-        return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     
-    private func dayString(from date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "ko_KR")
-        formatter.dateFormat = "M월 d일 (E)"
-        return formatter.string(from: date)
-    }
-    
-    // 현재 주의 월요일을 반환
-    private func getMondayOfCurrentWeek() -> Date {
-        let calendar = Calendar.current
-        let today = Date()
-        
-        // 오늘 날짜의 주차를 구함
-        let weekOfYear = calendar.component(.weekOfYear, from: today)
-        let year = calendar.component(.year, from: today)
-        
-        // 해당 주의 월요일을 구함
-        let firstWeekday = calendar.dateInterval(of: .weekOfYear, for: today)?.start ?? today
-        
-        // 월요일이 아닌 경우 이전 월요일로 조정
-        let weekday = calendar.component(.weekday, from: firstWeekday)
-        let daysToSubtract = weekday - 2 // 월요일은 2, 일요일은 1
-        
-        if daysToSubtract > 0 {
-            return calendar.date(byAdding: .day, value: -daysToSubtract, to: firstWeekday) ?? today
-        }
-        
-        return firstWeekday
-    }
-}
-
-// MARK: - ImagePickerRepresentable
-struct ImagePickerRepresentable: UIViewControllerRepresentable {
-    let sourceType: UIImagePickerController.SourceType
-    let onImagePicked: (UIImage) -> Void
-    let onCancel: () -> Void
-    
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = sourceType
-        picker.delegate = context.coordinator
-        return picker
-    }
-    
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: ImagePickerRepresentable
-        
-        init(_ parent: ImagePickerRepresentable) {
-            self.parent = parent
-        }
-        
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-            if let image = info[.originalImage] as? UIImage {
-                parent.onImagePicked(image)
-            }
-            picker.dismiss(animated: true)
-        }
-        
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.onCancel()
-            picker.dismiss(animated: true)
+    private func processSelectedImage(_ image: UIImage, _ viewStore: ViewStoreOf<MenuEditorFeature>) {
+        let imageData = image.jpegData(compressionQuality: 0.8)
+        if let data = imageData {
+            viewStore.send(.imageSelected(data))
         }
     }
 }

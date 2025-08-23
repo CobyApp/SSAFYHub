@@ -6,6 +6,7 @@ struct SettingsView: View {
     let store: StoreOf<SettingsFeature>
     @Environment(\.dismiss) private var dismiss
     @StateObject private var themeManager = ThemeManager()
+
     
     var body: some View {
         WithViewStore(store, observe: { $0 }) { viewStore in
@@ -18,7 +19,7 @@ struct SettingsView: View {
                         // 캠퍼스 설정 섹션
                         campusSection(viewStore)
                         
-                        // 테마 설정 섹션
+                        // 테마 설정 섹션 (원본과 동일하게)
                         themeSection
                         
                         // 계정 관리 섹션 (인증된 사용자만 표시)
@@ -50,6 +51,16 @@ struct SettingsView: View {
                 }
             } message: {
                 Text("정말 로그아웃 하시겠습니까?")
+            }
+            .alert("회원탈퇴", isPresented: .constant(viewStore.showingDeleteAccountAlert)) {
+                Button("취소", role: .cancel) {
+                    viewStore.send(.cancelDeleteAccount)
+                }
+                Button("회원탈퇴", role: .destructive) {
+                    viewStore.send(.confirmDeleteAccount)
+                }
+            } message: {
+                Text("정말 회원탈퇴 하시겠습니까? 이 작업은 되돌릴 수 없습니다.")
             }
             .alert("오류", isPresented: .constant(viewStore.errorMessage != nil)) {
                 Button("확인") {
@@ -91,19 +102,21 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Text("테마 설정")
                 .font(AppTypography.title3)
-                .fontWeight(.semibold)
                 .foregroundColor(AppColors.textPrimary)
             
-            VStack(spacing: 0) {
+            VStack(spacing: AppSpacing.sm) {
                 ForEach(ThemeManager.ThemeMode.allCases, id: \.self) { themeMode in
                     Button(action: {
                         themeManager.setThemeMode(themeMode)
                     }) {
                         HStack {
+                            Image(systemName: "paintbrush.fill")
+                                .foregroundColor(AppColors.primary)
+                                .frame(width: 24)
+                            
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(themeMode.displayName)
                                     .font(AppTypography.body)
-                                    .fontWeight(.medium)
                                     .foregroundColor(AppColors.textPrimary)
                                 
                                 Text("\(themeMode.displayName) 테마로 설정")
@@ -116,20 +129,16 @@ struct SettingsView: View {
                             if themeManager.themeMode == themeMode {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 20))
-                                    .foregroundColor(AppColors.accentPrimary)
+                                    .foregroundColor(AppColors.success)
                             }
                         }
                         .padding(AppSpacing.md)
+                        .background(AppColors.backgroundSecondary)
+                        .cornerRadius(AppCornerRadius.medium)
                     }
                     .buttonStyle(PlainButtonStyle())
-                    
-                    if themeMode != ThemeManager.ThemeMode.allCases.last {
-                        Divider()
-                    }
                 }
             }
-            .background(AppColors.surfaceSecondary)
-            .cornerRadius(12)
         }
     }
     
@@ -168,6 +177,7 @@ struct SettingsView: View {
             .background(campusBackground(campus: campus))
             .overlay(campusBorder(campus: campus))
         }
+        .buttonStyle(PlainButtonStyle())
         .disabled(!campus.isAvailable)
     }
     
@@ -240,35 +250,9 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Text("계정 관리")
                 .font(AppTypography.title3)
-                .fontWeight(.semibold)
                 .foregroundColor(AppColors.textPrimary)
             
-            VStack(spacing: 0) {
-                // 사용자 정보
-                if let currentUser = viewStore.currentUser {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("로그인 정보")
-                                .font(AppTypography.body)
-                                .fontWeight(.medium)
-                                .foregroundColor(AppColors.textPrimary)
-                            
-                            Text(currentUser.email)
-                                .font(AppTypography.caption)
-                                .foregroundColor(AppColors.textSecondary)
-                        }
-                        
-                        Spacer()
-                        
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(AppColors.accentPrimary)
-                    }
-                    .padding(AppSpacing.md)
-                    
-                    Divider()
-                }
-                
+            VStack(spacing: AppSpacing.sm) {
                 // 로그아웃 버튼
                 Button(action: {
                     viewStore.send(.signOutTapped)
@@ -284,22 +268,41 @@ struct SettingsView: View {
                         
                         Spacer()
                         
-                        if viewStore.isSigningOut {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        } else {
-                            Image(systemName: "chevron.right")
-                                .foregroundColor(AppColors.textTertiary)
-                                .font(.caption)
-                        }
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(AppColors.textTertiary)
+                            .font(.caption)
                     }
                     .padding(AppSpacing.md)
+                    .background(AppColors.backgroundSecondary)
+                    .cornerRadius(AppCornerRadius.medium)
                 }
-                .disabled(viewStore.isSigningOut)
+                .buttonStyle(PlainButtonStyle())
+                
+                // 회원탈퇴 버튼
+                Button(action: {
+                    viewStore.send(.deleteAccountTapped)
+                }) {
+                    HStack {
+                        Image(systemName: "person.crop.circle.badge.minus")
+                            .foregroundColor(AppColors.error)
+                            .frame(width: 24)
+                        
+                        Text("회원탈퇴")
+                            .font(AppTypography.body)
+                            .foregroundColor(AppColors.error)
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(AppColors.textTertiary)
+                            .font(.caption)
+                    }
+                    .padding(AppSpacing.md)
+                    .background(AppColors.backgroundSecondary)
+                    .cornerRadius(AppCornerRadius.medium)
+                }
                 .buttonStyle(PlainButtonStyle())
             }
-            .background(AppColors.surfaceSecondary)
-            .cornerRadius(12)
         }
     }
     
@@ -332,11 +335,11 @@ struct SettingsView: View {
                             .font(.caption)
                     }
                     .padding(AppSpacing.md)
+                    .background(AppColors.backgroundSecondary)
+                    .cornerRadius(AppCornerRadius.medium)
                 }
                 .buttonStyle(PlainButtonStyle())
             }
-            .background(AppColors.surfaceSecondary)
-            .cornerRadius(12)
         }
     }
     
@@ -345,7 +348,6 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Text("앱 정보")
                 .font(AppTypography.title3)
-                .fontWeight(.semibold)
                 .foregroundColor(AppColors.textPrimary)
             
             VStack(spacing: AppSpacing.sm) {

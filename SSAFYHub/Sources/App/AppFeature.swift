@@ -57,6 +57,10 @@ public struct AppFeature {
                 
             case let .tabChanged(tab):
                 state.currentTab = tab
+                // 설정 탭으로 이동 시 onAppear 액션 전달
+                if tab == .settings {
+                    return .send(.settings(.onAppear))
+                }
                 return .none
                 
             case .auth(.onAppear):
@@ -83,10 +87,11 @@ public struct AppFeature {
                 return .none
                 
             case .auth(.userSignedOut):
-                // 로그아웃 시 메뉴 캠퍼스 초기화
+                // 로그아웃 시 모든 상태 초기화
                 state.menu.campus = .daejeon
-                // SettingsFeature에서도 사용자 정보 제거
+                state.menu.currentMenu = nil
                 state.settings.currentUser = nil
+                state.currentTab = .main
                 return .none
                 
             case .auth(.setLoading(_)):
@@ -97,6 +102,15 @@ public struct AppFeature {
                 
             case .auth(.clearError):
                 return .none
+                
+            case .settings(.navigateToAuth):
+                // 설정에서 로그아웃/회원탈퇴/게스트모드나가기 완료 후 로그인 화면으로 이동
+                state.currentTab = .main
+                return .send(.auth(.userSignedOut))
+                
+            case .settings(.deleteAccountCompleted):
+                // 회원탈퇴 완료 시 Auth 상태도 업데이트
+                return .send(.auth(.userSignedOut))
                 
             case .initializationComplete:
                 state.isInitialized = true

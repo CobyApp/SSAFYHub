@@ -38,6 +38,8 @@ public struct MenuEditorFeature {
         case onAppear
         case weekStartChanged(Date)
         case itemChanged(dayIndex: Int, itemId: MenuItem.ID, text: String)
+        case addMenuItem(dayIndex: Int, mealType: MealType)
+        case removeMenuItem(dayIndex: Int, itemId: MenuItem.ID)
         case saveWeeklyMenu
         case saveCompleted
         case saveFailed(String)
@@ -46,6 +48,7 @@ public struct MenuEditorFeature {
         case clearError
         case showImagePicker(State.ImagePickerSourceType)
         case hideImagePicker
+        case imageSelected(Data)
         case analyzeImageData(Data)
         case imageAnalysisCompleted([MealMenu])
         case imageAnalysisFailed(String)
@@ -71,6 +74,23 @@ public struct MenuEditorFeature {
                 if dayIndex >= 0 && dayIndex < state.weeklyMenuItems.count,
                    let itemIndex = state.weeklyMenuItems[dayIndex].indices.first(where: { state.weeklyMenuItems[dayIndex][$0].id == itemId }) {
                     state.weeklyMenuItems[dayIndex][itemIndex].text = text
+                }
+                return .none
+                
+            case let .addMenuItem(dayIndex, mealType):
+                if dayIndex >= 0 && dayIndex < state.weeklyMenuItems.count {
+                    let newItem = MenuItem(text: "", mealType: mealType)
+                    state.weeklyMenuItems[dayIndex].append(newItem)
+                }
+                return .none
+                
+            case let .removeMenuItem(dayIndex, itemId):
+                if dayIndex >= 0 && dayIndex < state.weeklyMenuItems.count {
+                    state.weeklyMenuItems[dayIndex].removeAll { $0.id == itemId }
+                    // 최소 하나의 아이템은 유지
+                    if state.weeklyMenuItems[dayIndex].isEmpty {
+                        state.weeklyMenuItems[dayIndex].append(MenuItem(text: "", mealType: .a))
+                    }
                 }
                 return .none
                 
@@ -140,6 +160,9 @@ public struct MenuEditorFeature {
             case .hideImagePicker:
                 state.showImagePicker = false
                 return .none
+                
+            case let .imageSelected(imageData):
+                return .send(.analyzeImageData(imageData))
                 
             case let .analyzeImageData(imageData):
                 state.isAnalyzingImage = true
