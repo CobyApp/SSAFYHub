@@ -540,16 +540,49 @@ public class SupabaseService: ObservableObject {
     func deleteAccount() async throws {
         print("🗑️ SupabaseService: 회원탈퇴 시작")
         
-        // 현재 사용자 정보 가져오기
-        guard let currentUser = try? await client.auth.session.user else {
-            print("❌ SupabaseService: 현재 사용자 정보를 찾을 수 없음")
-            throw NSError(domain: "SupabaseService", code: 1001, userInfo: [NSLocalizedDescriptionKey: "사용자 정보를 찾을 수 없습니다"])
+        // 1. 먼저 Supabase 세션에서 사용자 정보 가져오기 시도
+        var userId: String?
+        var userEmail: String?
+        var userType: UserType?
+        
+        if let currentUser = try? await client.auth.session.user {
+            userId = currentUser.id.uuidString
+            userEmail = currentUser.email ?? "unknown"
+            print("✅ Supabase 세션에서 사용자 정보 획득")
+        } else {
+            print("⚠️ Supabase 세션에서 사용자 정보를 찾을 수 없음 - 로컬 저장소 확인")
+            
+            // 2. 로컬 저장된 사용자 정보 사용
+            if let savedUser = await restoreUserSession() {
+                userId = savedUser.id
+                userEmail = savedUser.email
+                userType = savedUser.userType
+                print("✅ 로컬 저장소에서 사용자 정보 복구: \(savedUser.email)")
+            } else {
+                print("❌ 로컬 저장소에서도 사용자 정보를 찾을 수 없음")
+                // 그래도 로컬 데이터 정리는 시도
+                await clearAllLocalData()
+                return
+            }
         }
         
-        let userId = currentUser.id.uuidString
-        let userEmail = currentUser.email ?? "unknown"
-        print("👤 삭제할 사용자 ID: \(userId)")
-        print("📧 삭제할 사용자 이메일: \(userEmail)")
+        guard let finalUserId = userId, let finalUserEmail = userEmail else {
+            print("❌ SupabaseService: 사용자 정보를 찾을 수 없습니다")
+            // 로컬 데이터만 정리하고 종료
+            await clearAllLocalData()
+            return
+        }
+        
+        // 3. 게스트 사용자인지 확인
+        if userType == .guest || finalUserEmail == "guest@ssafyhub.com" {
+            print("👤 게스트 사용자 감지 - 로컬 데이터만 정리")
+            await clearAllLocalData()
+            return
+        }
+        
+        print("👤 삭제할 사용자 ID: \(finalUserId)")
+        print("📧 삭제할 사용자 이메일: \(finalUserEmail)")
+        print("🔐 사용자 타입: \(userType?.rawValue ?? "unknown")")
         
         do {
             // 1. 사용자가 작성한 메뉴 데이터 삭제 (여러 조건으로 시도)
@@ -560,7 +593,7 @@ public class SupabaseService: ObservableObject {
             let menuResponse = try await client.database
                 .from("menus")
                 .select("id, updated_by")
-                .eq("updated_by", value: userEmail)
+                .eq("updated_by", value: finalUserEmail)
                 .execute()
             
             let menuData = menuResponse.data
@@ -573,11 +606,11 @@ public class SupabaseService: ObservableObject {
                 try await client.database
                     .from("menus")
                     .delete()
-                    .eq("updated_by", value: userEmail)
+                    .eq("updated_by", value: finalUserEmail)
                     .execute()
                 print("✅ 사용자 메뉴 데이터 삭제 완료")
             } else {
-                print("🍽️ 삭제할 메뉴 데이터 없음 (사용자: \(userEmail))")
+                print("🍽️ 삭제할 메뉴 데이터 없음 (사용자: \(finalUserEmail))")
             }
             
             // 2. 사용자 프로필 데이터 삭제
@@ -587,7 +620,7 @@ public class SupabaseService: ObservableObject {
             let userResponse = try await client.database
                 .from("users")
                 .select("id, email, campus_id")
-                .eq("id", value: userId)
+                .eq("id", value: finalUserId)
                 .execute()
             
             let userData = userResponse.data
@@ -599,7 +632,7 @@ public class SupabaseService: ObservableObject {
                 let deleteResponse = try await client.database
                     .from("users")
                     .delete()
-                    .eq("id", value: userId)
+                    .eq("id", value: finalUserId)
                     .execute()
                 
                 print("✅ 사용자 프로필 데이터 삭제 완료")
@@ -609,22 +642,7 @@ public class SupabaseService: ObservableObject {
             }
             
             // 3. 로컬 세션 및 데이터 정리
-            print("🧹 로컬 데이터 정리 시작")
-            
-            // UserDefaults 정리
-            UserDefaults.standard.removeObject(forKey: "manual.supabase.session")
-            UserDefaults.standard.removeObject(forKey: "saved.user.session")
-            UserDefaults.standard.removeObject(forKey: "user.campus")
-            UserDefaults.standard.removeObject(forKey: "user.preferences")
-            
-            // 키체인 정리
-            let sessionKeychain = Keychain(service: "com.coby.ssafyhub.session")
-            try? sessionKeychain.remove("manual.session")
-            
-            let userKeychain = Keychain(service: "com.coby.ssafyhub.user")
-            try? userKeychain.remove("user.session")
-            
-            print("✅ 로컬 데이터 정리 완료")
+            await clearAllLocalData()
             
             // 4. Supabase 인증 세션 정리 (로그아웃)
             print("🔐 Supabase 세션 정리 시작")
@@ -636,7 +654,9 @@ public class SupabaseService: ObservableObject {
         } catch {
             print("❌ SupabaseService: 회원탈퇴 중 오류 발생: \(error)")
             
-            // 부분적으로 삭제된 경우에도 로그아웃은 시도
+            // 부분적으로 삭제된 경우에도 로컬 데이터 정리 및 로그아웃은 시도
+            await clearAllLocalData()
+            
             do {
                 try await client.auth.signOut()
                 print("⚠️ 부분 삭제 후 로그아웃 완료")
@@ -660,5 +680,29 @@ public class SupabaseService: ObservableObject {
                 userInfo: [NSLocalizedDescriptionKey: errorMessage]
             )
         }
+    }
+    
+    // MARK: - Local Data Cleanup
+    private func clearAllLocalData() async {
+        print("🧹 로컬 데이터 정리 시작")
+        
+        // UserDefaults 정리
+        UserDefaults.standard.removeObject(forKey: "manual.supabase.session")
+        UserDefaults.standard.removeObject(forKey: "saved.user.session")
+        UserDefaults.standard.removeObject(forKey: "user.campus")
+        UserDefaults.standard.removeObject(forKey: "user.preferences")
+        UserDefaults.standard.removeObject(forKey: "savedUser") // AuthViewModel에서 사용하는 키
+        
+        // 키체인 정리
+        let sessionKeychain = Keychain(service: "com.coby.ssafyhub.session")
+        try? sessionKeychain.remove("manual.session")
+        
+        let userKeychain = Keychain(service: "com.coby.ssafyhub.user")
+        try? userKeychain.remove("user.session")
+        
+        // Apple Sign-In 정보도 정리
+        await AppleSignInService.shared.clearAppleUserInfo()
+        
+        print("✅ 로컬 데이터 정리 완료")
     }
 }

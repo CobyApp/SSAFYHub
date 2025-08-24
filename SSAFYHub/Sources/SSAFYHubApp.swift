@@ -18,7 +18,11 @@ struct SSAFYHubApp: App {
                     }
                 }
                 .onAppear {
+                    print("🚀 SSAFYHubApp: 앱 시작 - isAuthenticated: \(viewStore.state)")
                     viewStore.send(.onAppear)
+                }
+                .onChange(of: viewStore.state) { oldValue, newValue in
+                    print("🔄 SSAFYHubApp: 인증 상태 변경 - \(oldValue) → \(newValue)")
                 }
             }
         }

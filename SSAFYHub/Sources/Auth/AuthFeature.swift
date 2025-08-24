@@ -8,7 +8,9 @@ public struct AuthFeature {
     public struct State: Equatable {
         public var currentUser: AppUser?
         public var isAuthenticated: Bool {
-            currentUser != nil
+            let authenticated = currentUser != nil
+            print("🔐 AuthFeature: isAuthenticated 계산 - currentUser: \(currentUser?.email ?? "nil") → \(authenticated)")
+            return authenticated
         }
         public var isLoading = false
         public var errorMessage: String?
@@ -43,11 +45,18 @@ public struct AuthFeature {
         Reduce { state, action in
             switch action {
             case .onAppear:
+                // 이미 currentUser가 있으면 세션 복구를 시도하지 않음
+                if state.currentUser != nil {
+                    return .none
+                }
+                
                 return .run { send in
                     // 저장된 세션 복구 시도
                     if let user = await supabaseService.restoreUserSession() {
                         await send(.userAuthenticated(user))
                     }
+                    // 세션 복구 실패 시에도 userSignedOut을 보내지 않음
+                    // 이미 로그인 화면에 있거나 게스트 모드로 시작한 상태를 유지
                 }
                 
             case .signInAsGuest:
@@ -84,6 +93,7 @@ public struct AuthFeature {
                 }
                 
             case let .userAuthenticated(user):
+                print("🔐 AuthFeature: userAuthenticated 시작 - 사용자: \(user.email)")
                 state.currentUser = user
                 state.errorMessage = nil
                 
@@ -93,6 +103,7 @@ public struct AuthFeature {
                     print("🔐 사용자 정보 저장됨: \(user.email)")
                 }
                 
+                print("🔐 AuthFeature: userAuthenticated 완료 - currentUser: \(state.currentUser?.email ?? "nil")")
                 return .none
                 
             case .userSignedOut:
