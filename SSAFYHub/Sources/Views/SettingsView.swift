@@ -2,6 +2,13 @@ import SwiftUI
 import ComposableArchitecture
 import SharedModels
 
+// MARK: - Bundle Extension for Version Info
+extension Bundle {
+    var appVersion: String {
+        return infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+    }
+}
+
 struct SettingsView: View {
     let store: StoreOf<SettingsFeature>
     @Environment(\.dismiss) private var dismiss
@@ -362,7 +369,7 @@ struct SettingsView: View {
                     
                     Spacer()
                     
-                    Text("1.0.5")
+                    Text(Bundle.main.appVersion)
                         .font(AppTypography.body)
                         .foregroundColor(AppColors.textSecondary)
                 }
