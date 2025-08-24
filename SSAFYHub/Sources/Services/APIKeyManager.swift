@@ -12,29 +12,47 @@ class APIKeyManager: ObservableObject {
     // MARK: - Supabase Keys
     var supabaseURL: String {
         get {
-            // LocalConfig에서 직접 가져오기
-            return LocalConfig.supabaseURL
+            // 1. 환경 변수에서 읽기
+            if let envURL = ProcessInfo.processInfo.environment["SUPABASE_URL"], !envURL.isEmpty {
+                return envURL
+            }
+            // 2. keychain에서 읽기
+            if let keychainURL = keychain["SUPABASE_URL"], !keychainURL.isEmpty {
+                return keychainURL
+            }
+            // 3. 기본값 반환 (개발용)
+            return ""
         }
         set {
-            // keychain에 저장 (선택사항)
             keychain["SUPABASE_URL"] = newValue
         }
     }
     
     var supabaseAnonKey: String {
         get {
-            // LocalConfig에서 직접 가져오기
-            return LocalConfig.supabaseAnonKey
+            // 1. 환경 변수에서 읽기
+            if let envKey = ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"], !envKey.isEmpty {
+                return envKey
+            }
+            // 2. keychain에서 읽기
+            if let keychainKey = keychain["SUPABASE_ANON_KEY"], !keychainKey.isEmpty {
+                return keychainKey
+            }
+            // 3. 기본값 반환 (개발용)
+            return ""
         }
         set {
-            // keychain에 저장 (선택사항)
             keychain["SUPABASE_ANON_KEY"] = newValue
         }
     }
     
     var supabaseServiceRoleKey: String {
         get {
-            // keychain에서 읽기
+            // 1. 환경 변수에서 읽기
+            if let envKey = ProcessInfo.processInfo.environment["SUPABASE_SERVICE_ROLE_KEY"], !envKey.isEmpty {
+                return envKey
+            }
+            // 2. keychain에서 읽기
             return keychain["SUPABASE_SERVICE_ROLE_KEY"] ?? ""
         }
         set {
@@ -45,19 +63,34 @@ class APIKeyManager: ObservableObject {
     // MARK: - OpenAI Keys
     var openAIAPIKey: String {
         get {
-            // LocalConfig에서 직접 가져오기
-            return LocalConfig.openAIAPIKey
+            // 1. 환경 변수에서 읽기
+            if let envKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"], !envKey.isEmpty {
+                return envKey
+            }
+            // 2. keychain에서 읽기
+            if let keychainKey = keychain["OPENAI_API_KEY"], !keychainKey.isEmpty {
+                return keychainKey
+            }
+            // 3. 기본값 반환 (개발용)
+            return ""
         }
         set {
-            // keychain에 저장 (선택사항)
             keychain["OPENAI_API_KEY"] = newValue
         }
     }
     
     var openAIBaseURL: String {
         get {
-            // keychain에서 읽기, 없으면 기본값
-            return keychain["OPENAI_BASE_URL"] ?? "https://api.openai.com/v1"
+            // 1. 환경 변수에서 읽기
+            if let envURL = ProcessInfo.processInfo.environment["OPENAI_BASE_URL"], !envURL.isEmpty {
+                return envURL
+            }
+            // 2. keychain에서 읽기
+            if let keychainURL = keychain["OPENAI_BASE_URL"], !keychainURL.isEmpty {
+                return keychainURL
+            }
+            // 3. 기본값 반환
+            return "https://api.openai.com/v1"
         }
         set {
             keychain["OPENAI_BASE_URL"] = newValue
@@ -79,14 +112,12 @@ class APIKeyManager: ObservableObject {
     
     // MARK: - Setup Methods
     func setupDefaultKeys() {
-        // LocalConfig에서 항상 값을 가져오므로 별도 설정 불필요
-        print("🔧 APIKeyManager: LocalConfig에서 API 키를 직접 사용합니다")
+        print("🔧 APIKeyManager: 환경 변수 또는 keychain에서 API 키를 읽어옵니다")
         printConfiguration()
     }
     
     // MARK: - Clear Keys
     func clearAllKeys() {
-        // LocalConfig를 사용하므로 keychain만 정리
         try? keychain.remove("SUPABASE_URL")
         try? keychain.remove("SUPABASE_ANON_KEY")
         try? keychain.remove("SUPABASE_SERVICE_ROLE_KEY")
@@ -97,6 +128,7 @@ class APIKeyManager: ObservableObject {
     
     // MARK: - Debug Info
     func printConfiguration() {
+        let source = getConfigurationSource()
         print("🔧 API Key Manager Configuration:")
         print("   🗄️ Supabase URL: \(supabaseURL)")
         print("   🔑 Supabase Anon Key: \(supabaseAnonKey.prefix(20))...")
@@ -104,6 +136,17 @@ class APIKeyManager: ObservableObject {
         print("   ✅ Supabase Configured: \(isSupabaseConfigured)")
         print("   ✅ OpenAI Configured: \(isOpenAIConfigured)")
         print("   ✅ Fully Configured: \(isFullyConfigured)")
-        print("   📱 Source: LocalConfig.swift")
+        print("   📱 Source: \(source)")
+    }
+    
+    private func getConfigurationSource() -> String {
+        if ProcessInfo.processInfo.environment["SUPABASE_URL"] != nil || 
+           ProcessInfo.processInfo.environment["OPENAI_API_KEY"] != nil {
+            return "Environment Variables"
+        } else if keychain["SUPABASE_URL"] != nil || keychain["OPENAI_API_KEY"] != nil {
+            return "Keychain"
+        } else {
+            return "Default Values (Development)"
+        }
     }
 }

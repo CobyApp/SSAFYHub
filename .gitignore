@@ -83,4 +83,6 @@ Derived/
 
 # Logs
 *.log
-SSAFYHub/Sources/Config/LocalConfig.swift
+
+# Environment variables
+.env
