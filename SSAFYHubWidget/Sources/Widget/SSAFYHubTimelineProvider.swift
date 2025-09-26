@@ -107,7 +107,7 @@ struct SSAFYHubTimelineProvider: TimelineProvider {
                 print("❌ 위젯: 네트워크 요청 실패 - \(error)")
                 
                 // 네트워크 실패 시 캐시된 데이터 사용, 없으면 기본 데이터 사용
-                let fallbackMenu = cachedMenu ?? createDefaultMenu(for: today)
+                let fallbackMenu: MealMenu? = cachedMenu ?? createDefaultMenu(for: today)
                 
                 let allEntries = updateTimes.map { date in
                     SSAFYHubTimelineEntry(

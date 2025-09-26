@@ -88,4 +88,4 @@ Derived/
 .env
 
 # Local configuration with API keys
-SSAFYHub/Sources/Config/LocalConfig.swift
+SSAFYHub/Sources/Core/Utilities/LocalConfig.swift

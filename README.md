@@ -1,9 +1,9 @@
 # SSAFYHub
 
-**버전**: 1.0.1  
-**최종 업데이트**: 2025년 8월
+**버전**: 1.0.5  
+**최종 업데이트**: 2025년 1월
 
-SSAFY 학생들을 위한 종합 허브 앱
+SSAFY 학생들을 위한 종합 허브 앱으로, 캠퍼스 식단 정보를 제공하고 관리할 수 있는 iOS 앱입니다.
 
 ## 📱 스크린샷
 
@@ -19,90 +19,141 @@ SSAFY 학생들을 위한 종합 허브 앱
 - **다크모드 지원**: 라이트/다크/시스템 테마 자동 지원
 - **위젯 지원**: iOS 위젯으로 오늘의 메뉴 확인
 
-## 🏗️ 기술 스택
+## 🏗️ 프로젝트 구조
 
-- **Frontend**: SwiftUI
-- **Backend**: Supabase (PostgreSQL + Auth)
-- **AI**: OpenAI GPT-4o-mini API (이미지 분석 지원)
+```
+SSAFYHub/
+├── 📁 Configuration/              # 설정 파일
+│   └── env.example               # 환경 변수 예시
+├── 📁 Documentation/             # 문서
+│   ├── database/                 # 데이터베이스 스키마
+│   ├── README.md                 # 상세 문서
+│   └── WIDGET_README.md          # 위젯 문서
+├── 📁 Scripts/                   # 빌드 스크립트
+├── 📁 SharedModels/              # 공유 모델
+│   └── Sources/
+│       └── SharedModels.swift
+├── 📁 SSAFYHub/                  # 메인 앱
+│   ├── 📁 Resources/             # 앱 리소스
+│   ├── 📁 Sources/               # 소스 코드
+│   │   ├── 📁 App/               # 앱 진입점
+│   │   ├── 📁 Core/              # 핵심 모듈
+│   │   │   ├── 📁 Caching/       # 캐싱 시스템
+│   │   │   ├── 📁 ErrorHandling/ # 에러 처리
+│   │   │   ├── 📁 Logging/       # 로깅 시스템
+│   │   │   ├── 📁 Managers/      # 서비스 매니저
+│   │   │   ├── 📁 Network/       # 네트워크 관리
+│   │   │   ├── 📁 Testing/       # 테스트 유틸리티
+│   │   │   └── 📁 Utilities/     # 유틸리티
+│   │   ├── 📁 Screens/           # 화면별 모듈
+│   │   │   ├── 📁 Auth/          # 인증 화면
+│   │   │   │   ├── AuthFeature.swift
+│   │   │   │   ├── AuthView.swift
+│   │   │   │   └── 📁 Components/ # 인증 관련 컴포넌트
+│   │   │   ├── 📁 Menu/          # 메뉴 화면
+│   │   │   │   ├── MenuFeature.swift
+│   │   │   │   ├── MainMenuView.swift
+│   │   │   │   ├── MenuEditorFeature.swift
+│   │   │   │   ├── MenuEditorView.swift
+│   │   │   │   ├── MenuTypeInputView.swift
+│   │   │   │   └── 📁 Components/ # 메뉴 관련 컴포넌트
+│   │   │   └── 📁 Settings/      # 설정 화면
+│   │   │       ├── SettingsFeature.swift
+│   │   │       └── SettingsView.swift
+│   │   ├── 📁 Shared/            # 공유 컴포넌트
+│   │   │   └── 📁 Components/    # 재사용 가능한 컴포넌트
+│   │   └── SSAFYHubApp.swift     # 앱 진입점
+│   └── 📁 Tests/                 # 테스트
+│       ├── 📁 UnitTests/         # 단위 테스트
+│       ├── 📁 IntegrationTests/  # 통합 테스트
+│       └── 📁 UITests/           # UI 테스트
+└── 📁 SSAFYHubWidget/            # 위젯 확장
+    ├── 📁 Sources/
+    │   ├── 📁 Core/              # 위젯 핵심 로직
+    │   ├── 📁 UI/                # 위젯 UI
+    │   └── 📁 Widget/            # 위젯 구현
+    └── SSAFYHubWidget.entitlements
+```
+
+## 🛠️ 기술 스택
+
+- **Frontend**: SwiftUI, ComposableArchitecture (TCA)
+- **Backend**: Supabase (PostgreSQL, Auth)
+- **AI**: OpenAI GPT-4o-mini (이미지 분석)
 - **Build System**: Tuist
-- **Authentication**: Apple Sign-In
+- **Authentication**: Apple Sign-In, Guest Mode
+- **Widget**: WidgetKit (iOS widgets)
 - **Architecture**: MVVM + Coordinator Pattern
 - **Design System**: 중앙화된 색상 및 테마 관리
-- **Widget**: WidgetKit을 사용한 iOS 위젯
 
-## 📱 앱 구조
+## 🚀 시작하기
 
-### 핵심 모델
-- **User**: 사용자 정보 및 권한 관리
-- **Campus**: 캠퍼스별 설정 및 상태
-- **Menu**: A타입/B타입 메뉴 데이터 구조
+### 필수 요구사항
 
-### 주요 화면
-- **AuthView**: 로그인/회원가입
-- **MainMenuView**: 메인 메뉴 화면 (주말 자동 처리)
-- **MenuEditorView**: 주간 메뉴 편집 (AI 인식 지원)
-- **SettingsView**: 설정 및 테마 관리
-- **Widget**: A타입/B타입 메뉴 위젯
-
-### 서비스 레이어
-- **SupabaseService**: 데이터베이스 연동
-- **ChatGPTService**: AI 메뉴 인식
-- **AppleSignInService**: Apple 로그인
-- **APIKeyManager**: API 키 관리
-- **WidgetDataService**: 위젯 데이터 공유
-- **ThemeManager**: 다크모드/라이트모드 관리
-
-## 🔧 설정
-
-### OpenAI API 설정
-
-1. [OpenAI Platform](https://platform.openai.com/api-keys)에서 API 키 발급
-2. `SSAFYHub/Sources/Services/APIKeyManager.swift` 파일에서 API 키 설정
-
-### Supabase 설정
-
-1. Supabase 프로젝트 생성
-2. 환경 변수 설정:
-   - `SUPABASE_URL`: Supabase 프로젝트 URL
-   - `SUPABASE_ANON_KEY`: Supabase 익명 키
-
-### 권한 설정
-
-앱에서 다음 권한을 요청합니다:
-- **카메라**: 메뉴 사진 촬영
-- **앨범**: 기존 메뉴 사진 선택
-
-## 📋 요구사항
-
-- iOS 17.0+
 - Xcode 15.0+
-- Tuist 4.0+
-- Apple Developer 계정 (Apple Sign-In 사용 시)
+- iOS 17.0+
+- Swift 5.9+
 
-## 📥 설치 방법
+### 설치 및 실행
 
-### App Store (권장)
-- App Store에서 "SSAFYHub" 검색 후 설치
-- iOS 17.0 이상 필요
+1. **저장소 클론**
+   ```bash
+   git clone https://github.com/CobyApp/SSAFYHub.git
+   cd SSAFYHub
+   ```
 
-### 개발자 빌드
-```bash
-# 저장소 클론
-git clone https://github.com/your-username/SSAFYHub.git
-cd SSAFYHub
+2. **의존성 설치**
+   ```bash
+   tuist install
+   ```
 
-# Tuist 설치
-curl -Ls https://install.tuist.io | bash
+3. **환경 변수 설정**
+   ```bash
+   cp Configuration/env.example .env
+   # .env 파일에 실제 API 키 설정
+   ```
 
-# 프로젝트 생성
-tuist generate
+4. **프로젝트 생성 및 실행**
+   ```bash
+   tuist generate
+   # Xcode에서 프로젝트 열기
+   ```
 
-# 의존성 설치
-tuist fetch
+## 📋 주요 모듈
 
-# 프로젝트 빌드
-tuist build
-```
+### Core 모듈
+- **Caching**: 메모리 및 디스크 캐싱 시스템
+- **ErrorHandling**: 중앙화된 에러 처리 및 복구 전략
+- **Logging**: 구조화된 로깅 시스템
+- **Network**: 네트워크 요청 관리 및 모니터링
+- **Managers**: 다양한 서비스 매니저 (Supabase, ChatGPT, Apple Sign-In)
+
+### Screens 모듈 (화면별 구성)
+- **Auth**: 인증 화면 (AuthFeature + AuthView + 관련 컴포넌트)
+- **Menu**: 메뉴 화면 (MenuFeature + MainMenuView + MenuEditorFeature + MenuEditorView + 관련 컴포넌트)
+- **Settings**: 설정 화면 (SettingsFeature + SettingsView)
+
+### Shared 모듈
+- **Components**: 여러 화면에서 재사용되는 공통 컴포넌트
+
+## 🍽️ 위젯 기능
+
+### 📱 위젯 종류
+- **A타입 위젯**: 오늘의 A타입 식단 표시
+- **B타입 위젯**: 오늘의 B타입 식단 표시
+
+### 🔄 자동 업데이트
+- **업데이트 시간**: 매일 자정, 점심(12시), 저녁(18시)
+- **실시간 동기화**: 메인 앱에서 메뉴 수정 시 위젯 자동 업데이트
+- **직접 데이터 로딩**: 위젯이 독립적으로 네트워크에서 최신 데이터 로드
+
+### 📏 지원 크기
+- **Small**: 작은 크기 (기본)
+- **Medium**: 중간 크기 (더 많은 메뉴 표시)
+
+### 🎨 디자인 특징
+- **A타입 위젯**: 주황색 테마, 🍴 아이콘
+- **B타입 위젯**: 초록색 테마, 🍃 아이콘
 
 ## 🗄️ 데이터베이스 스키마
 
@@ -153,7 +204,38 @@ tuist build
 - **자동 업데이트**: 메뉴 변경 시 위젯 자동 반영
 - **오늘 날짜만**: 위젯은 오늘 날짜의 메뉴만 표시
 
+## 🧪 테스트
 
+```bash
+# 단위 테스트 실행
+tuist test
+
+# 특정 테스트 타겟 실행
+tuist test SSAFYHubTests
+```
+
+## 📦 빌드
+
+```bash
+# 프로젝트 빌드
+tuist build
+
+# 특정 타겟 빌드
+tuist build SSAFYHub
+```
+
+## 🔧 개발 가이드
+
+### 코딩 컨벤션
+- Swift API Design Guidelines 준수
+- ComposableArchitecture 패턴 사용
+- 각 컴포넌트는 별도 파일로 분리
+- 명확한 네이밍과 주석 작성
+
+### 아키텍처 패턴
+- **MVVM + Coordinator**: README에 명시된 패턴
+- **TCA (The Composable Architecture)**: 상태 관리
+- **Dependency Injection**: 의존성 주입
 
 ## 🔐 보안 및 권한
 
@@ -169,37 +251,6 @@ tuist build
 - **다크모드**: 완전 지원 ✅
 - **위젯**: A타입/B타입 완전 지원 ✅
 - **AI 메뉴 인식**: GPT-4o-mini 기반 완전 지원 ✅
-
-## 🛠️ 개발 환경 설정
-
-```bash
-# Tuist 설치
-curl -Ls https://install.tuist.io | bash
-
-# 프로젝트 생성
-tuist generate
-
-# 의존성 설치
-tuist fetch
-
-# 프로젝트 빌드
-tuist build
-```
-
-## 🎨 디자인 시스템
-
-- **중앙화된 색상 관리**: AppDesignSystem.swift에서 모든 색상 통합 관리
-- **다크모드 자동 지원**: iOS 시스템 색상 활용으로 완벽한 다크모드 지원
-- **일관된 UI**: 모든 화면에서 동일한 디자인 언어 사용
-- **접근성**: 고대비 색상과 적절한 폰트 크기로 가독성 향상
-
-## 📝 라이선스
-
-© 2025 Coby
-
-## 📞 문의
-
-프로젝트 관련 문의사항이 있으시면 이슈를 등록해 주세요.
 
 ## 🐛 문제 해결
 
@@ -231,6 +282,17 @@ tuist build
 
 ## 📝 업데이트 로그
 
+### v1.0.5 (2025년 1월)
+- 🏗️ **프로젝트 구조 대폭 개선**
+- 📁 화면별 모듈 구조로 재구성 (Screens/Auth, Screens/Menu, Screens/Settings)
+- 🔧 중앙화된 에러 처리 시스템 구현
+- 📊 구조화된 로깅 시스템 추가
+- 🌐 중앙화된 네트워크 관리 시스템
+- 💾 계층적 캐싱 시스템 (메모리 + 디스크)
+- 🧪 포괄적인 테스트 프레임워크
+- 🍽️ 위젯 직접 데이터 로딩 기능
+- 📚 문서화 개선 및 통합
+
 ### v1.0.1 (2025년 8월)
 - 🔧 **버그 수정 및 안정성 개선**
 - 🐛 회원탈퇴 시 데이터베이스 정리 로직 개선
@@ -254,3 +316,19 @@ tuist build
 - 🚧 **v1.1.0**: 추가 캠퍼스 지원 (서울, 광주, 구미, 부산)
 - 🚧 **v1.2.0**: 알림 기능 및 메뉴 즐겨찾기
 - 🚧 **v1.3.0**: 통계 및 분석 기능
+
+## 📄 라이선스
+
+이 프로젝트는 MIT 라이선스 하에 배포됩니다.
+
+## 🤝 기여하기
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📞 지원
+
+문제가 있거나 질문이 있으시면 [Issues](https://github.com/CobyApp/SSAFYHub/issues)를 통해 문의해주세요.
