@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import SharedModels
+import Dependencies
 
 @Reducer
 public struct MenuFeature {
@@ -32,6 +33,7 @@ public struct MenuFeature {
     }
     
     @Dependency(\.supabaseService) var supabaseService
+    @Dependency(\.errorHandler) var errorHandler
     
     public init() {}
     
@@ -73,7 +75,8 @@ public struct MenuFeature {
                         let menu = try await supabaseService.fetchMenu(date: date, campus: campus)
                         await send(.menuLoaded(menu))
                     } catch {
-                        await send(.loadMenuFailed(error.localizedDescription))
+                        let errorResult = await errorHandler.handle(error)
+                        await send(.loadMenuFailed(errorResult.userMessage))
                     }
                     await send(.setLoading(false))
                 }
@@ -86,7 +89,8 @@ public struct MenuFeature {
                         let menu = try await supabaseService.fetchMenu(date: date, campus: campus)
                         await send(.menuLoaded(menu))
                     } catch {
-                        await send(.loadMenuFailed(error.localizedDescription))
+                        let errorResult = await errorHandler.handle(error)
+                        await send(.loadMenuFailed(errorResult.userMessage))
                     }
                     await send(.setLoading(false))
                 }

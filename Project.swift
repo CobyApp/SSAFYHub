@@ -109,7 +109,8 @@ let project = Project(
       ],
       settings: .settings(base: [
         "DEVELOPMENT_TEAM": "3Y8YH8GWMM",
-        "TARGETED_DEVICE_FAMILY": "1"
+        "TARGETED_DEVICE_FAMILY": "1",
+        "CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION": "YES"
       ])
     )
   ]

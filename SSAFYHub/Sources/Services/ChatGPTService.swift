@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import SharedModels
+import Dependencies
 
 public class ChatGPTService: ObservableObject {
     static let shared = ChatGPTService()
@@ -8,6 +9,9 @@ public class ChatGPTService: ObservableObject {
     // MARK: - Properties
     private let apiKey: String
     private let baseURL: String
+    @Dependency(\.errorHandler) var errorHandler
+    @Dependency(\.logger) var logger
+    @Dependency(\.networkManager) var networkManager
     
     public init() {
         // APIKeyManager에서 OpenAI 설정 가져오기
@@ -24,23 +28,29 @@ public class ChatGPTService: ObservableObject {
             fatalError("❌ ChatGPTService: OpenAI 설정이 유효하지 않습니다. APIKeyManager를 확인해주세요.")
         }
         
-        print("🔧 ChatGPTService: 초기화 완료")
-        print("🔧 ChatGPTService: Base URL: \(apiKeyManager.openAIBaseURL)")
-        print("🔧 ChatGPTService: API Key: \(apiKey.prefix(20))...")
+        logger.logAI(.info, "ChatGPTService 초기화 완료", additionalData: [
+            "base_url": apiKeyManager.openAIBaseURL,
+            "api_key_prefix": String(apiKey.prefix(20))
+        ])
     }
     
     // MARK: - 메뉴 이미지 분석
     func analyzeMenuImage(_ image: UIImage) async throws -> [MealMenu] {
-        print("🚀 ChatGPTService: 이미지 분석 시작")
-        print("📸 이미지 크기: \(image.size)")
+        logger.logAI(.info, "이미지 분석 시작", additionalData: [
+            "image_size": "\(image.size.width)x\(image.size.height)",
+            "image_scale": image.scale
+        ])
         
         guard let imageData = image.jpegData(compressionQuality: 0.8) else {
-            print("❌ ChatGPTService: 이미지 변환 실패")
-            throw ChatGPTError.imageConversionFailed
+            logger.logAI(.error, "이미지 변환 실패")
+            throw AppError.ai(.imageConversionFailed)
         }
         
         let base64Image = imageData.base64EncodedString()
-        print("📊 Base64 이미지 길이: \(base64Image.count)")
+        logger.logAI(.debug, "Base64 이미지 변환 완료", additionalData: [
+            "base64_length": base64Image.count,
+            "compression_quality": 0.8
+        ])
         
         let prompt = """
         이 이미지는 삼성화재 유성캠퍼스의 주간 식단표입니다. 
@@ -68,7 +78,9 @@ public class ChatGPTService: ObservableObject {
         정확하게 파싱해주세요.
         """
         
-        print("📝 프롬프트 전송: \(prompt)")
+        logger.logAI(.debug, "프롬프트 전송", additionalData: [
+            "prompt_length": prompt.count
+        ])
         
         let requestBody = ChatGPTRequest(
             model: "gpt-4o-mini", // GPT-4o-mini 모델 사용 (이미지 분석 지원)
@@ -93,108 +105,68 @@ public class ChatGPTService: ObservableObject {
             temperature: 0.1
         )
         
-        let url = URL(string: baseURL)!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(requestBody)
+        // 네트워크 매니저를 사용한 요청
+        let endpoint = DefaultAPIEndpoint(
+            baseURL: baseURL.replacingOccurrences(of: "/chat/completions", with: ""),
+            path: "/chat/completions",
+            method: .POST,
+            headers: [
+                "Authorization": "Bearer \(apiKey)"
+            ],
+            body: try JSONEncoder().encode(requestBody),
+            timeout: 60.0
+        )
         
-        print("🌐 ChatGPT API 요청 시작")
-        print("🔗 URL: \(url)")
-        print("📤 요청 크기: \(request.httpBody?.count ?? 0) bytes")
+        logger.logAI(.info, "ChatGPT API 요청 시작", additionalData: [
+            "url": endpoint.baseURL + endpoint.path,
+            "request_size": try JSONEncoder().encode(requestBody).count,
+            "model": "gpt-4o-mini"
+        ])
         
-        // 재시도 로직 추가
-        let maxRetries = 3
-        var lastError: Error?
-        
-        for attempt in 1...maxRetries {
-            do {
-                let (data, response) = try await URLSession.shared.data(for: request)
-                
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    print("❌ ChatGPTService: HTTP 응답이 아님")
-                    throw ChatGPTError.apiRequestFailed
-                }
-                
-                print("📥 ChatGPT API 응답 수신 (시도 \(attempt)/\(maxRetries))")
-                print("📊 상태 코드: \(httpResponse.statusCode)")
-                print("📦 응답 크기: \(data.count) bytes")
-                
-                if httpResponse.statusCode == 200 {
-                    let chatGPTResponse = try JSONDecoder().decode(ChatGPTResponse.self, from: data)
-                    
-                    guard let firstChoice = chatGPTResponse.choices.first,
-                          let message = firstChoice.message,
-                          let content = message.content else {
-                        print("❌ ChatGPTService: 응답에서 텍스트 내용을 찾을 수 없음")
-                        print("📋 응답 구조: \(chatGPTResponse)")
-                        throw ChatGPTError.noContentReceived
-                    }
-                    
-                    print("✅ ChatGPTService: 응답 파싱 성공")
-                    print("📝 응답 텍스트 길이: \(content.count)")
-                    print("📝 응답 텍스트 미리보기: \(String(content.prefix(200)))...")
-                    
-                    // JSON 응답에서 메뉴 데이터 추출
-                    return try parseMenuData(from: content)
-                    
-                } else if httpResponse.statusCode == 429 {
-                    // 할당량 초과 - 재시도 대기
-                    print("⚠️ ChatGPTService: 할당량 초과 (429), 재시도 대기 중...")
-                    
-                    if attempt < maxRetries {
-                        // 기본 재시도 대기 시간
-                        let baseDelay = attempt * 5 // 5초, 10초, 15초
-                        print("⏰ 기본 재시도 대기 시간: \(baseDelay)초")
-                        try await Task.sleep(nanoseconds: UInt64(baseDelay) * 1_000_000_000)
-                        continue
-                    } else {
-                        print("❌ ChatGPTService: 최대 재시도 횟수 초과")
-                        lastError = ChatGPTError.apiRequestFailed
-                        break
-                    }
-                    
-                } else {
-                    print("❌ ChatGPTService: API 요청 실패 - 상태 코드: \(httpResponse.statusCode)")
-                    if let errorString = String(data: data, encoding: .utf8) {
-                        print("❌ 에러 응답: \(errorString)")
-                    }
-                    lastError = ChatGPTError.apiRequestFailed
-                    break
-                }
-                
-            } catch {
-                print("❌ ChatGPTService: 네트워크 에러 (시도 \(attempt)/\(maxRetries)): \(error)")
-                lastError = error
-                
-                if attempt < maxRetries {
-                    // 네트워크 에러 시 짧은 대기 후 재시도
-                    try await Task.sleep(nanoseconds: UInt64(attempt * 2) * 1_000_000_000)
-                    continue
-                } else {
-                    break
-                }
+        // NetworkManager를 사용한 요청 (재시도 로직은 NetworkManager에서 처리)
+        do {
+            let chatGPTResponse = try await networkManager.request(endpoint, responseType: ChatGPTResponse.self)
+            
+            guard let firstChoice = chatGPTResponse.choices.first,
+                  let message = firstChoice.message,
+                  let content = message.content else {
+                logger.logAI(.error, "응답에서 텍스트 내용을 찾을 수 없음", additionalData: [
+                    "response_structure": String(describing: chatGPTResponse)
+                ])
+                throw AppError.ai(.noContentReceived)
             }
+            
+            logger.logAI(.info, "ChatGPT API 응답 파싱 성공", additionalData: [
+                "response_length": content.count,
+                "response_preview": String(content.prefix(200))
+            ])
+            
+            // JSON 응답에서 메뉴 데이터 추출
+            return try parseMenuData(from: content)
+            
+        } catch {
+            logger.logAI(.error, "ChatGPT API 요청 실패", additionalData: [
+                "error": error.localizedDescription
+            ])
+            throw error
         }
-        
-        // 모든 재시도 실패
-        throw lastError ?? ChatGPTError.apiRequestFailed
     }
     
     // MARK: - 메뉴 데이터 파싱
     private func parseMenuData(from text: String) throws -> [MealMenu] {
-        print("🔍 메뉴 데이터 파싱 시작")
+        logger.logAI(.debug, "메뉴 데이터 파싱 시작")
         
         // JSON 부분 추출
         guard let startIndex = text.firstIndex(of: "{"),
               let endIndex = text.lastIndex(of: "}") else {
-            print("❌ JSON 시작/끝 문자를 찾을 수 없음")
-            throw ChatGPTError.parsingFailed
+            logger.logAI(.error, "JSON 시작/끝 문자를 찾을 수 없음")
+            throw AppError.ai(.parsingFailed)
         }
         
         let jsonString = String(text[startIndex...endIndex])
-        print("📋 추출된 JSON: \(jsonString)")
+        logger.logAI(.debug, "JSON 추출 완료", additionalData: [
+            "json_length": jsonString.count
+        ])
         
         do {
             let jsonData = jsonString.data(using: .utf8)!
@@ -208,7 +180,9 @@ public class ChatGPTService: ObservableObject {
                 dateFormatter.dateFormat = "yyyy-MM-dd"
                 
                 guard let date = dateFormatter.date(from: geminiMenu.date) else {
-                    print("⚠️ 날짜 파싱 실패: \(geminiMenu.date)")
+                    logger.logAI(.warning, "날짜 파싱 실패", additionalData: [
+                        "invalid_date": geminiMenu.date
+                    ])
                     continue
                 }
                 
@@ -229,8 +203,10 @@ public class ChatGPTService: ObservableObject {
             return menus
             
         } catch {
-            print("❌ JSON 파싱 실패: \(error)")
-            throw ChatGPTError.parsingFailed
+            logger.logAI(.error, "JSON 파싱 실패", additionalData: [
+                "error": error.localizedDescription
+            ])
+            throw AppError.ai(.parsingFailed)
         }
     }
 }
@@ -306,23 +282,3 @@ struct GeminiMenu: Codable {
     let itemsB: [String]
 }
 
-// MARK: - 에러 타입
-enum ChatGPTError: Error, LocalizedError {
-    case imageConversionFailed
-    case apiRequestFailed
-    case noContentReceived
-    case parsingFailed
-    
-    var errorDescription: String? {
-        switch self {
-        case .imageConversionFailed:
-            return "이미지 변환에 실패했습니다."
-        case .apiRequestFailed:
-            return "ChatGPT API 요청에 실패했습니다."
-        case .noContentReceived:
-            return "ChatGPT에서 응답을 받지 못했습니다."
-        case .parsingFailed:
-            return "응답 파싱에 실패했습니다."
-        }
-    }
-}

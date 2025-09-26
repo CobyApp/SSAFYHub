@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import SharedModels
+import Dependencies
 
 @Reducer
 public struct AuthFeature {
@@ -38,6 +39,7 @@ public struct AuthFeature {
     }
     
     @Dependency(\.supabaseService) var supabaseService
+    @Dependency(\.errorHandler) var errorHandler
     
     public init() {}
     
@@ -87,9 +89,15 @@ public struct AuthFeature {
             case .signOut:
                 state.isLoading = true
                 return .run { send in
-                    try? await supabaseService.signOut()
-                    await send(.userSignedOut)
-                    await send(.setLoading(false))
+                    do {
+                        try await supabaseService.signOut()
+                        await send(.userSignedOut)
+                        await send(.setLoading(false))
+                    } catch {
+                        let errorResult = await errorHandler.handle(error)
+                        await send(.setError(errorResult.userMessage))
+                        await send(.setLoading(false))
+                    }
                 }
                 
             case let .userAuthenticated(user):

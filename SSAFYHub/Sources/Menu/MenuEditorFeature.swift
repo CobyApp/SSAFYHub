@@ -3,6 +3,7 @@ import Foundation
 import SharedModels
 import IdentifiedCollections
 import UIKit
+import Dependencies
 
 @Reducer
 public struct MenuEditorFeature {
@@ -57,6 +58,7 @@ public struct MenuEditorFeature {
     
     @Dependency(\.supabaseService) var supabaseService
     @Dependency(\.chatGPTService) var chatGPTService
+    @Dependency(\.errorHandler) var errorHandler
     
     public init() {}
     
@@ -127,7 +129,8 @@ public struct MenuEditorFeature {
                         await send(.saveCompleted)
                         await send(.setSaving(false))
                     } catch {
-                        await send(.saveFailed(error.localizedDescription))
+                        let errorResult = await errorHandler.handle(error)
+                        await send(.saveFailed(errorResult.userMessage))
                         await send(.setSaving(false))
                     }
                 }
@@ -178,7 +181,8 @@ public struct MenuEditorFeature {
                         await send(.imageAnalysisCompleted(menus))
                         await send(.setAnalyzingImage(false))
                     } catch {
-                        await send(.imageAnalysisFailed(error.localizedDescription))
+                        let errorResult = await errorHandler.handle(error)
+                        await send(.imageAnalysisFailed(errorResult.userMessage))
                         await send(.setAnalyzingImage(false))
                     }
                 }

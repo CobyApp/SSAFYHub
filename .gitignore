@@ -86,3 +86,6 @@ Derived/
 
 # Environment variables
 .env
+
+# Local configuration with API keys
+SSAFYHub/Sources/Config/LocalConfig.swift

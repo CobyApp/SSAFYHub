@@ -3,11 +3,14 @@ import Supabase
 import SharedModels
 import AuthenticationServices
 import KeychainAccess
+import Dependencies
 
 public class SupabaseService: ObservableObject {
     static let shared = SupabaseService()
     
     let client: SupabaseClient
+    @Dependency(\.cacheManager) var cacheManager
+    @Dependency(\.logger) var logger
     
     public init() {
         // APIKeyManager에서 Supabase 설정 가져오기
@@ -36,6 +39,95 @@ public class SupabaseService: ObservableObject {
         
         // API Key Manager 설정 정보 출력
         apiKeyManager.printConfiguration()
+        
+        // 위젯과 설정 공유
+        shareConfigWithWidget(url: supabaseURL, anonKey: supabaseAnonKey)
+    }
+    
+    // MARK: - 위젯과 설정 공유
+    private func shareConfigWithWidget(url: String, anonKey: String) {
+        if let userDefaults = UserDefaults(suiteName: "group.com.coby.ssafyhub") {
+            userDefaults.set(url, forKey: "supabase_url")
+            userDefaults.set(anonKey, forKey: "supabase_anon_key")
+            
+            // 위젯 첫 설치를 위한 기본 메뉴 데이터도 공유
+            shareDefaultMenuWithWidget(userDefaults: userDefaults)
+            
+            print("✅ SupabaseService: 위젯과 설정 공유 완료")
+            print("   - URL: \(url)")
+            print("   - Anon Key: \(anonKey.prefix(20))...")
+        } else {
+            print("❌ SupabaseService: App Group UserDefaults 접근 실패")
+        }
+    }
+    
+    // 위젯 첫 설치를 위한 기본 메뉴 데이터 공유
+    private func shareDefaultMenuWithWidget(userDefaults: UserDefaults) {
+        print("🍽️ SupabaseService: 위젯에 기본 메뉴 데이터 공유")
+        
+        // 오늘 날짜로 기본 메뉴 생성
+        let today = Calendar.current.startOfDay(for: Date())
+        let defaultMenu = MealMenu(
+            id: "default-\(today.timeIntervalSince1970)",
+            date: today,
+            campus: .daejeon,
+            itemsA: [
+                "김치찌개",
+                "제육볶음", 
+                "미역국",
+                "깍두기",
+                "공기밥"
+            ],
+            itemsB: [
+                "된장찌개",
+                "불고기",
+                "계란국",
+                "배추김치",
+                "공기밥"
+            ],
+            updatedAt: Date(),
+            updatedBy: nil
+        )
+        
+        // 메뉴 데이터를 JSON으로 인코딩하여 저장
+        do {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            let menuData = try encoder.encode(defaultMenu)
+            userDefaults.set(menuData, forKey: "currentMenu")
+            
+            print("✅ SupabaseService: 기본 메뉴 데이터 저장 완료")
+            print("   - 메뉴 날짜: \(defaultMenu.date)")
+            print("   - A타입 메뉴: \(defaultMenu.itemsA.joined(separator: ", "))")
+            print("   - B타입 메뉴: \(defaultMenu.itemsB.joined(separator: ", "))")
+            
+        } catch {
+            print("❌ SupabaseService: 기본 메뉴 데이터 저장 실패 - \(error)")
+        }
+    }
+    
+    // 위젯과 메뉴 데이터 공유
+    private func shareMenuWithWidget(menu: MealMenu) {
+        print("🍽️ SupabaseService: 위젯에 메뉴 데이터 공유")
+        
+        if let userDefaults = UserDefaults(suiteName: "group.com.coby.ssafyhub") {
+            do {
+                let encoder = JSONEncoder()
+                encoder.dateEncodingStrategy = .iso8601
+                let menuData = try encoder.encode(menu)
+                userDefaults.set(menuData, forKey: "currentMenu")
+                
+                print("✅ SupabaseService: 메뉴 데이터 저장 완료")
+                print("   - 메뉴 날짜: \(menu.date)")
+                print("   - A타입 메뉴: \(menu.itemsA.joined(separator: ", "))")
+                print("   - B타입 메뉴: \(menu.itemsB.joined(separator: ", "))")
+                
+            } catch {
+                print("❌ SupabaseService: 메뉴 데이터 저장 실패 - \(error)")
+            }
+        } else {
+            print("❌ SupabaseService: App Group UserDefaults 접근 실패")
+        }
     }
     
     // MARK: - Apple Sign In
@@ -289,13 +381,29 @@ public class SupabaseService: ObservableObject {
             .execute()
     }
     
-    func fetchMenu(date: Date, campus: Campus) async throws -> MealMenu? {
+    func fetchMenu(date: Date, campus: Campus, userId: String? = nil) async throws -> MealMenu? {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         dateFormatter.timeZone = TimeZone(abbreviation: "UTC") // UTC 시간대 고정
         let dateString = dateFormatter.string(from: date)
         
-        print("🔍 SupabaseService: 메뉴 조회 - 날짜: \(dateString), 캠퍼스: \(campus.rawValue)")
+        logger.logData(.debug, "메뉴 조회 시작", additionalData: [
+            "date": dateString,
+            "campus": campus.rawValue,
+            "user_id": userId ?? "unknown"
+        ])
+        
+        // 캐시에서 먼저 확인
+        if let userId = userId {
+            if let cachedMenu = await cacheManager.getCachedMenu(for: userId, campus: campus, date: date) {
+                logger.logData(.debug, "캐시된 메뉴 사용", additionalData: [
+                    "menu_id": cachedMenu.id,
+                    "date": dateString,
+                    "campus": campus.rawValue
+                ])
+                return cachedMenu
+            }
+        }
         
         // 명시적으로 모든 컬럼 선택
         let response = try await client.database
@@ -307,19 +415,36 @@ public class SupabaseService: ObservableObject {
             .execute()
         
         let data = response.data
-        print("🔍 SupabaseService: 응답 데이터 크기: \(data.count) bytes")
-        
-        // 응답 데이터 내용 확인
-        if let jsonString = String(data: data, encoding: .utf8) {
-            print("🔍 SupabaseService: 응답 JSON 데이터: \(jsonString)")
-        }
+        logger.logData(.debug, "메뉴 응답 수신", additionalData: [
+            "data_size": data.count,
+            "date": dateString,
+            "campus": campus.rawValue
+        ])
         
         let decoder = JSONDecoder()
-        // keyDecodingStrategy 제거 - CodingKeys와 정확히 매치
-        // decoder.keyDecodingStrategy = .convertFromSnakeCase
-        
         let menu = try decoder.decode(MealMenu.self, from: data)
-        print("✅ SupabaseService: 메뉴 조회 성공 - ID: \(menu.id)")
+        
+        // 캐시에 저장
+        if let userId = userId {
+            await cacheManager.cacheMenu(menu, for: userId)
+            logger.logData(.debug, "메뉴 캐시에 저장", additionalData: [
+                "menu_id": menu.id,
+                "date": dateString,
+                "campus": campus.rawValue
+            ])
+        }
+        
+        logger.logData(.info, "메뉴 조회 성공", additionalData: [
+            "menu_id": menu.id,
+            "date": dateString,
+            "campus": campus.rawValue,
+            "items_a_count": menu.itemsA.count,
+            "items_b_count": menu.itemsB.count
+        ])
+        
+        // 위젯과 메뉴 데이터 공유
+        shareMenuWithWidget(menu: menu)
+        
         return menu
     }
     
@@ -392,7 +517,22 @@ public class SupabaseService: ObservableObject {
             print("✅ 메뉴 데이터 저장 완료")
         }
         
-        print("✅ SupabaseService: 메뉴 저장 완료")
+        logger.logData(.info, "메뉴 저장 완료", additionalData: [
+            "date": dateString,
+            "campus": menuInput.campus.rawValue,
+            "updated_by": updatedBy ?? "unknown"
+        ])
+        
+        // 캐시 무효화 (해당 날짜의 메뉴 캐시 제거)
+        if let updatedBy = updatedBy {
+            let cacheKey = CacheManager.key(for: updatedBy, campus: menuInput.campus, date: menuInput.date)
+            await cacheManager.remove(forKey: cacheKey)
+            logger.logData(.debug, "메뉴 캐시 무효화", additionalData: [
+                "cache_key": cacheKey,
+                "date": dateString,
+                "campus": menuInput.campus.rawValue
+            ])
+        }
     }
     
     // MARK: - Weekly Menu Saving
