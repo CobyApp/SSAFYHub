@@ -24,6 +24,7 @@ public struct AppFeature {
         case tabChanged(Tab)
         case onAppear
         case initializationComplete
+        case setMenuEditorCurrentDate(Date)
     }
     
     public enum Tab: Equatable {
@@ -114,6 +115,10 @@ public struct AppFeature {
                 
             case .initializationComplete:
                 state.isInitialized = true
+                return .none
+                
+            case let .setMenuEditorCurrentDate(date):
+                state.menuEditor.currentDate = date
                 return .none
                 
             case .menu, .menuEditor, .settings:

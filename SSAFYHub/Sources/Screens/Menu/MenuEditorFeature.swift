@@ -10,8 +10,10 @@ public struct MenuEditorFeature {
     @ObservableState
     public struct State: Equatable {
         public var selectedWeekStart: Date = Date()
+        public var currentDate: Date = Date()
         public var weeklyMenuItems: [IdentifiedArrayOf<MenuItem>] = Array(repeating: IdentifiedArray(), count: 5)
         public var isSaving = false
+        public var isLoading = false
         public var errorMessage: String?
         public var campus: Campus = .daejeon
         public var isAnalyzingImage = false
@@ -38,6 +40,10 @@ public struct MenuEditorFeature {
     public enum Action: Equatable {
         case onAppear
         case weekStartChanged(Date)
+        case loadExistingMenus
+        case menusLoaded([MealMenu?])
+        case loadMenusFailed(String)
+        case setLoading(Bool)
         case itemChanged(dayIndex: Int, itemId: MenuItem.ID, text: String)
         case addMenuItem(dayIndex: Int, mealType: MealType)
         case removeMenuItem(dayIndex: Int, itemId: MenuItem.ID)
@@ -66,10 +72,92 @@ public struct MenuEditorFeature {
         Reduce { state, action in
             switch action {
             case .onAppear:
-                return .none
+                return .run { send in
+                    await send(.loadExistingMenus)
+                }
                 
             case let .weekStartChanged(date):
                 state.selectedWeekStart = date
+                return .run { send in
+                    await send(.loadExistingMenus)
+                }
+                
+            case .loadExistingMenus:
+                state.isLoading = true
+                state.errorMessage = nil
+                return .run { [selectedWeekStart = state.selectedWeekStart, campus = state.campus] send in
+                    do {
+                        let calendar = Calendar.current
+                        let monday = selectedWeekStart
+                        var menus: [MealMenu?] = []
+                        
+                        // 월요일부터 금요일까지 각 날짜의 메뉴를 불러오기
+                        for dayOffset in 0..<5 {
+                            let date = calendar.date(byAdding: .day, value: dayOffset, to: monday) ?? Date()
+                            do {
+                                let menu = try await supabaseService.fetchMenu(date: date, campus: campus)
+                                menus.append(menu)
+                            } catch {
+                                // 개별 날짜의 메뉴 로딩 실패는 무시하고 nil 추가
+                                print("⚠️ 날짜 \(date) 메뉴 로딩 실패: \(error)")
+                                menus.append(nil)
+                            }
+                        }
+                        
+                        await send(.menusLoaded(menus))
+                        await send(.setLoading(false))
+                    } catch {
+                        let errorResult = await errorHandler.handle(error)
+                        await send(.loadMenusFailed(errorResult.userMessage))
+                        await send(.setLoading(false))
+                    }
+                }
+                
+            case let .menusLoaded(menus):
+                // 불러온 메뉴 데이터를 weeklyMenuItems에 적용
+                for (dayIndex, menu) in menus.enumerated() {
+                    guard dayIndex < state.weeklyMenuItems.count else { break }
+                    
+                    if let menu = menu {
+                        // 기존 메뉴 아이템들을 모두 제거하고 새로 생성
+                        state.weeklyMenuItems[dayIndex].removeAll()
+                        
+                        // A타입 메뉴들을 개별 MenuItem으로 추가
+                        for itemText in menu.itemsA {
+                            if !itemText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                let menuItem = MenuItem(text: itemText, mealType: .a)
+                                state.weeklyMenuItems[dayIndex].append(menuItem)
+                            }
+                        }
+                        
+                        // B타입 메뉴들을 개별 MenuItem으로 추가
+                        for itemText in menu.itemsB {
+                            if !itemText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                let menuItem = MenuItem(text: itemText, mealType: .b)
+                                state.weeklyMenuItems[dayIndex].append(menuItem)
+                            }
+                        }
+                        
+                        // 최소 하나의 아이템은 유지 (A타입과 B타입 각각)
+                        if state.weeklyMenuItems[dayIndex].isEmpty {
+                            state.weeklyMenuItems[dayIndex].append(MenuItem(text: "", mealType: .a))
+                            state.weeklyMenuItems[dayIndex].append(MenuItem(text: "", mealType: .b))
+                        } else {
+                            // A타입이 없으면 빈 A타입 추가
+                            if !state.weeklyMenuItems[dayIndex].contains(where: { $0.mealType == .a }) {
+                                state.weeklyMenuItems[dayIndex].append(MenuItem(text: "", mealType: .a))
+                            }
+                            // B타입이 없으면 빈 B타입 추가
+                            if !state.weeklyMenuItems[dayIndex].contains(where: { $0.mealType == .b }) {
+                                state.weeklyMenuItems[dayIndex].append(MenuItem(text: "", mealType: .b))
+                            }
+                        }
+                    }
+                }
+                return .none
+                
+            case let .loadMenusFailed(error):
+                state.errorMessage = "기존 메뉴 불러오기 실패: \(error)"
                 return .none
                 
             case let .itemChanged(dayIndex, itemId, text):
@@ -233,6 +321,11 @@ public struct MenuEditorFeature {
             case let .setAnalyzingImage(isAnalyzing):
                 state.isAnalyzingImage = isAnalyzing
                 return .none
+                
+            case let .setLoading(isLoading):
+                state.isLoading = isLoading
+                return .none
+                
             }
         }
     }

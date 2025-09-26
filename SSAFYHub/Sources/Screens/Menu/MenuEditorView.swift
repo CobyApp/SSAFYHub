@@ -39,8 +39,8 @@ struct MenuEditorView: View {
                     }
                 }
                 
-                // 로딩 오버레이 (사진 분석 중이거나 저장 중일 때 표시)
-                if viewStore.isAnalyzingImage || viewStore.isSaving {
+                // 로딩 오버레이 (사진 분석 중, 저장 중, 또는 데이터 로딩 중일 때 표시)
+                if viewStore.isAnalyzingImage || viewStore.isSaving || viewStore.isLoading {
                     loadingOverlay(viewStore)
                 }
             }
@@ -48,7 +48,7 @@ struct MenuEditorView: View {
                 viewStore.send(.onAppear)
                 // 전달받은 날짜로 주 시작일 초기화
                 let calendar = Calendar.current
-                let targetDate = Date() // 현재 날짜 사용
+                let targetDate = viewStore.currentDate // 현재 선택된 날짜 사용
                 
                 // 해당 날짜가 포함된 주의 월요일을 찾기
                 let weekday = calendar.component(.weekday, from: targetDate)
@@ -57,6 +57,11 @@ struct MenuEditorView: View {
                 if let monday = calendar.date(byAdding: .day, value: -daysFromMonday, to: targetDate) {
                     viewStore.send(.weekStartChanged(monday))
                     print("📅 주 시작일 설정: \(monday.formatted(date: .abbreviated, time: .omitted))")
+                }
+            }
+            .onChange(of: viewStore.shouldDismiss) { _, shouldDismiss in
+                if shouldDismiss {
+                    dismiss()
                 }
             }
             .alert("저장 실패", isPresented: .constant(viewStore.errorMessage != nil)) {
@@ -431,6 +436,16 @@ struct MenuEditorView: View {
                             .multilineTextAlignment(.center)
                     } else if viewStore.isSaving {
                         Text("메뉴를 저장하고 있습니다...")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(AppColors.textPrimary)
+                            .multilineTextAlignment(.center)
+                        
+                        Text("잠시만 기다려주세요")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(AppColors.textSecondary)
+                            .multilineTextAlignment(.center)
+                    } else if viewStore.isLoading {
+                        Text("기존 메뉴를 불러오고 있습니다...")
                             .font(.system(size: 18, weight: .bold, design: .rounded))
                             .foregroundColor(AppColors.textPrimary)
                             .multilineTextAlignment(.center)

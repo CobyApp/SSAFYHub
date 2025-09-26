@@ -411,7 +411,7 @@ public class SupabaseService: ObservableObject {
             .select("id, date, campus_id, items_a, items_b, updated_at, updated_by")
             .eq("date", value: dateString)
             .eq("campus_id", value: campus.rawValue)
-            .single()
+            .limit(1)
             .execute()
         
         let data = response.data
@@ -421,8 +421,26 @@ public class SupabaseService: ObservableObject {
             "campus": campus.rawValue
         ])
         
+        // 데이터가 비어있으면 nil 반환 (해당 날짜에 메뉴가 없음)
+        guard !data.isEmpty else {
+            logger.logData(.debug, "해당 날짜에 메뉴 없음", additionalData: [
+                "date": dateString,
+                "campus": campus.rawValue
+            ])
+            return nil
+        }
+        
+        // 배열로 반환되므로 첫 번째 요소를 가져옴
         let decoder = JSONDecoder()
-        let menu = try decoder.decode(MealMenu.self, from: data)
+        let menuArray = try decoder.decode([MealMenu].self, from: data)
+        
+        guard let menu = menuArray.first else {
+            logger.logData(.debug, "메뉴 배열이 비어있음", additionalData: [
+                "date": dateString,
+                "campus": campus.rawValue
+            ])
+            return nil
+        }
         
         // 캐시에 저장
         if let userId = userId {
@@ -509,12 +527,56 @@ public class SupabaseService: ObservableObject {
         } else {
             print("💾 Supabase에 저장할 데이터: \(menuData)")
             
-            let _ = try await client.database
-                .from("menus")
-                .upsert(menuData, onConflict: "date,campus_id")
-                .execute()
-            
-            print("✅ 메뉴 데이터 저장 완료")
+            do {
+                // 먼저 기존 메뉴가 있는지 확인
+                let existingResponse = try await client.database
+                    .from("menus")
+                    .select("id")
+                    .eq("date", value: dateString)
+                    .eq("campus_id", value: menuInput.campus.rawValue)
+                    .limit(1)
+                    .execute()
+                
+                let existingData = existingResponse.data
+                let hasExistingMenu = !existingData.isEmpty
+                
+                print("🔍 기존 메뉴 확인: \(hasExistingMenu ? "존재함" : "없음")")
+                
+                if hasExistingMenu {
+                    // 기존 메뉴가 있으면 업데이트
+                    print("🔄 기존 메뉴 업데이트 시도")
+                    let _ = try await client.database
+                        .from("menus")
+                        .update(menuData)
+                        .eq("date", value: dateString)
+                        .eq("campus_id", value: menuInput.campus.rawValue)
+                        .execute()
+                    
+                    print("✅ 기존 메뉴 업데이트 완료")
+                } else {
+                    // 기존 메뉴가 없으면 새로 삽입
+                    print("➕ 새 메뉴 삽입 시도")
+                    let _ = try await client.database
+                        .from("menus")
+                        .insert(menuData)
+                        .execute()
+                    
+                    print("✅ 새 메뉴 삽입 완료")
+                }
+                
+            } catch {
+                print("❌ Supabase 메뉴 저장 실패: \(error)")
+                print("   - 에러 타입: \(type(of: error))")
+                print("   - 에러 설명: \(error.localizedDescription)")
+                
+                // 더 자세한 에러 정보 출력
+                if let urlError = error as? URLError {
+                    print("   - URL 에러 코드: \(urlError.code)")
+                    print("   - URL 에러 설명: \(urlError.localizedDescription)")
+                }
+                
+                throw error
+            }
         }
         
         logger.logData(.info, "메뉴 저장 완료", additionalData: [

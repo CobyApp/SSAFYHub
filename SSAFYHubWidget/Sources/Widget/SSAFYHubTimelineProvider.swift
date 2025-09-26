@@ -26,11 +26,15 @@ struct SSAFYHubTimelineProvider: TimelineProvider {
     func getSnapshot(in context: Context, completion: @escaping (SSAFYHubTimelineEntry) -> ()) {
         print("📱 위젯 스냅샷 요청")
         
+        let calendar = Calendar.current
+        let currentDate = calendar.startOfDay(for: Date())
+        let targetDate = adjustWeekendDateIfNeeded(currentDate, calendar: calendar)
+        
         // 스냅샷에서는 캐시된 데이터가 있으면 사용, 없으면 기본 데이터 사용
-        let menu: MealMenu? = getCurrentMenu() ?? createDefaultMenu(for: Date())
+        let menu: MealMenu? = getCurrentMenu() ?? createDefaultMenu(for: targetDate)
         
         let entry = SSAFYHubTimelineEntry(
-            date: Date(),
+            date: targetDate,
             menu: menu
         )
         
@@ -49,15 +53,19 @@ struct SSAFYHubTimelineProvider: TimelineProvider {
         // 오늘 날짜만 사용 (시간은 제거)
         let today = calendar.startOfDay(for: currentDate)
         
-        print("📱 위젯 타임라인 시작 - 오늘 날짜: \(today)")
+        // 주말 처리: 토/일이면 가장 가까운 월요일로 이동
+        let targetDate = adjustWeekendDateIfNeeded(today, calendar: calendar)
         
-        // 위젯은 오늘 날짜로만 업데이트 (다른 날짜로 변경해도 반영하지 않음)
+        print("📱 위젯 타임라인 시작 - 원본 날짜: \(today)")
+        print("📱 위젯 타임라인 시작 - 조정된 날짜: \(targetDate)")
+        
+        // 위젯은 조정된 날짜로만 업데이트
         let updateTimes: [Date] = [
-            today, // 오늘 시작
-            calendar.date(byAdding: .hour, value: 6, to: today)!, // 오전 6시
-            calendar.date(byAdding: .hour, value: 12, to: today)!, // 오후 12시
-            calendar.date(byAdding: .hour, value: 18, to: today)!, // 오후 6시
-            calendar.date(byAdding: .day, value: 1, to: today)! // 다음날 (새로운 타임라인 시작)
+            targetDate, // 조정된 날짜 시작
+            calendar.date(byAdding: .hour, value: 6, to: targetDate)!, // 오전 6시
+            calendar.date(byAdding: .hour, value: 12, to: targetDate)!, // 오후 12시
+            calendar.date(byAdding: .hour, value: 18, to: targetDate)!, // 오후 6시
+            calendar.date(byAdding: .day, value: 1, to: targetDate)! // 다음날 (새로운 타임라인 시작)
         ]
         
         // 캐시된 데이터 확인 (로깅용)
@@ -76,7 +84,7 @@ struct SSAFYHubTimelineProvider: TimelineProvider {
         Task {
             do {
                 print("🌐 위젯: 네트워크 요청 시작")
-                let menu = try await fetchMenuFromAPI(date: today)
+                let menu = try await fetchMenuFromAPI(date: targetDate)
                 
                 print("✅ 위젯: 네트워크 요청 성공")
                 
@@ -107,7 +115,7 @@ struct SSAFYHubTimelineProvider: TimelineProvider {
                 print("❌ 위젯: 네트워크 요청 실패 - \(error)")
                 
                 // 네트워크 실패 시 캐시된 데이터 사용, 없으면 기본 데이터 사용
-                let fallbackMenu: MealMenu? = cachedMenu ?? createDefaultMenu(for: today)
+                let fallbackMenu: MealMenu? = cachedMenu ?? createDefaultMenu(for: targetDate)
                 
                 let allEntries = updateTimes.map { date in
                     SSAFYHubTimelineEntry(
@@ -321,6 +329,34 @@ struct SSAFYHubTimelineProvider: TimelineProvider {
             updatedAt: updatedAt,
             updatedBy: updatedBy
         )
+    }
+    
+    // 주말 날짜를 다음 월요일로 조정 (메인 앱과 동일한 로직)
+    private func adjustWeekendDateIfNeeded(_ date: Date, calendar: Calendar) -> Date {
+        let weekday = calendar.component(.weekday, from: date)
+        
+        // 주말이면 가장 가까운 월요일로 설정
+        if weekday == 1 { // 일요일
+            // 다음 주 월요일
+            if let nextMonday = calendar.date(byAdding: .day, value: 1, to: date) {
+                let mondayDate = calendar.startOfDay(for: nextMonday)
+                print("📅 위젯: 일요일 감지 - 다음 주 월요일로 자동 이동: \(mondayDate)")
+                return mondayDate
+            }
+        } else if weekday == 7 { // 토요일
+            // 다음 주 월요일
+            if let nextMonday = calendar.date(byAdding: .day, value: 2, to: date) {
+                let mondayDate = calendar.startOfDay(for: nextMonday)
+                print("📅 위젯: 토요일 감지 - 다음 주 월요일로 자동 이동: \(mondayDate)")
+                return mondayDate
+            }
+        } else {
+            // 평일이면 그대로 사용
+            print("📅 위젯: 평일 감지 - 날짜 유지: \(date)")
+            return date
+        }
+        
+        return date
     }
     
     // 위젯 첫 설치 시 사용할 기본 메뉴 생성

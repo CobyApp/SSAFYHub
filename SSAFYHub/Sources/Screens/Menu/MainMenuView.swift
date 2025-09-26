@@ -89,6 +89,12 @@ struct MainMenuView: View {
                     )
                 }
             }
+            .onChange(of: showMenuEditor) { _, isPresented in
+                if isPresented {
+                    // 메뉴 편집기 열기 전에 현재 날짜 설정
+                    viewStore.send(.setMenuEditorCurrentDate(viewStore.menu.currentDate))
+                }
+            }
         }
     }
     
